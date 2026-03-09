@@ -23,6 +23,8 @@ import {
   Code2,
   FileText,
   Bot,
+  Download,
+  Upload,
 } from 'lucide-react'
 import { BlockCreateDialog } from '@/components/blocks/BlockCreateDialog'
 import { BlockContentView } from '@/components/blocks/BlockContentView'
@@ -250,6 +252,7 @@ function AgentBlockEditor({ storyId, agentName, agents, onBack }: AgentBlockEdit
   const dragItem = useRef<number | null>(null)
   const dragOverItem = useRef<number | null>(null)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const agent = agents.find(a => a.agentName === agentName)
 
@@ -457,6 +460,37 @@ function AgentBlockEditor({ storyId, agentName, agents, onBack }: AgentBlockEdit
     setDragIndex(null)
   }, [mergedBlocks, configMutation])
 
+  const handleExport = useCallback(async () => {
+    try {
+      const exported = await api.agentBlocks.exportConfig(storyId, agentName)
+      const blob = new Blob([JSON.stringify(exported, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${agentName}-context.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      // silently fail
+    }
+  }, [storyId, agentName])
+
+  const handleImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+      const config = parsed.config ?? parsed
+      await api.agentBlocks.importConfig(storyId, agentName, config)
+      queryClient.invalidateQueries({ queryKey: ['agent-blocks', storyId, agentName] })
+    } catch {
+      // silently fail
+    }
+    // Reset input so the same file can be re-imported
+    e.target.value = ''
+  }, [storyId, agentName, queryClient])
+
   const roleTransitions = useMemo(() => {
     const set = new Set<number>()
     for (let i = 0; i < mergedBlocks.length; i++) {
@@ -500,15 +534,42 @@ function AgentBlockEditor({ storyId, agentName, agents, onBack }: AgentBlockEdit
           <p className="text-[0.75rem] font-medium truncate">{agent?.displayName ?? agentName}</p>
           <p className="text-[0.625rem] text-muted-foreground truncate">{agent?.description}</p>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-7 text-xs gap-1.5 shrink-0"
-          onClick={() => setShowPreview(true)}
-        >
-          <Eye className="size-3" />
-          Preview
-        </Button>
+        <div className="flex items-center gap-1 shrink-0">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="size-7 p-0"
+            onClick={handleExport}
+            title="Export config"
+          >
+            <Download className="size-3.5" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="size-7 p-0"
+            onClick={() => fileInputRef.current?.click()}
+            title="Import config"
+          >
+            <Upload className="size-3.5" />
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleImport}
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs gap-1.5"
+            onClick={() => setShowPreview(true)}
+          >
+            <Eye className="size-3" />
+            Preview
+          </Button>
+        </div>
       </div>
 
       <ScrollArea className="flex-1 min-h-0 [&>[data-slot=scroll-area-viewport]>div]:!block">

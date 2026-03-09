@@ -3,6 +3,7 @@ import type {
   AgentBlockInfo,
   AgentBlocksResponse,
   AgentBlockConfig,
+  ExportedAgentConfig,
   BlockPreviewResponse,
   CustomBlockDefinition,
   BlockOverride,
@@ -21,6 +22,15 @@ export const agentBlocks = {
 
   preview: (storyId: string, agentName: string) =>
     apiFetch<BlockPreviewResponse>(`/stories/${storyId}/agent-blocks/${agentName}/preview`),
+
+  exportConfig: (storyId: string, agentName: string) =>
+    apiFetch<ExportedAgentConfig>(`/stories/${storyId}/agent-blocks/${agentName}/export-config`),
+
+  importConfig: (storyId: string, agentName: string, config: AgentBlockConfig) =>
+    apiFetch<{ ok: boolean }>(`/stories/${storyId}/agent-blocks/${agentName}/import-config`, {
+      method: 'POST',
+      body: JSON.stringify({ config }),
+    }),
 
   createCustom: (storyId: string, agentName: string, data: CustomBlockDefinition) =>
     apiFetch<AgentBlockConfig>(`/stories/${storyId}/agent-blocks/${agentName}/custom`, {

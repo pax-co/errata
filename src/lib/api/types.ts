@@ -346,6 +346,12 @@ export interface AgentBlocksResponse {
   availableTools: string[]
 }
 
+export interface ExportedAgentConfig {
+  agentName: string
+  displayName: string
+  config: AgentBlockConfig
+}
+
 // Config export/import types
 export interface ExportedConfigs {
   blockConfig?: BlockConfig

@@ -12,11 +12,13 @@ import { CustomBlockDefinitionSchema } from '../blocks/schema'
 import type { BlockOverride } from '../blocks/schema'
 import {
   getAgentBlockConfig,
+  saveAgentBlockConfig,
   addAgentCustomBlock,
   updateAgentCustomBlock,
   deleteAgentCustomBlock,
   updateAgentBlockOverrides,
   updateAgentDisabledTools,
+  AgentBlockConfigSchema,
 } from '../agents/agent-block-storage'
 
 export function agentBlockRoutes(dataDir: string) {
@@ -41,6 +43,60 @@ export function agentBlockRoutes(dataDir: string) {
         availableTools: def.availableTools ?? [],
       }))
     }, { detail: { summary: 'List all agent block definitions' } })
+
+    // Export a single agent's block config for sharing
+    .get('/stories/:storyId/agent-blocks/:agentName/export-config', async ({ params, set }) => {
+      ensureCoreAgentsRegistered()
+      const story = await getStory(dataDir, params.storyId)
+      if (!story) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
+
+      const def = agentBlockRegistry.get(params.agentName)
+      if (!def) {
+        set.status = 404
+        return { error: `Agent block definition not found: ${params.agentName}` }
+      }
+
+      const config = await getAgentBlockConfig(dataDir, params.storyId, params.agentName)
+      return {
+        agentName: params.agentName,
+        displayName: def.displayName,
+        config,
+      }
+    }, { detail: { summary: 'Export a single agent block config' } })
+
+    // Import a single agent's block config
+    .post('/stories/:storyId/agent-blocks/:agentName/import-config', async ({ params, body, set }) => {
+      ensureCoreAgentsRegistered()
+      const story = await getStory(dataDir, params.storyId)
+      if (!story) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
+
+      const def = agentBlockRegistry.get(params.agentName)
+      if (!def) {
+        set.status = 404
+        return { error: `Agent block definition not found: ${params.agentName}` }
+      }
+
+      const { config } = body as { config?: unknown }
+      if (!config) {
+        set.status = 422
+        return { error: 'Missing config field' }
+      }
+
+      const parsed = AgentBlockConfigSchema.safeParse(config)
+      if (!parsed.success) {
+        set.status = 422
+        return { error: 'Invalid agent block config', details: parsed.error.issues }
+      }
+
+      await saveAgentBlockConfig(dataDir, params.storyId, params.agentName, parsed.data)
+      return { ok: true }
+    }, { detail: { summary: 'Import a single agent block config' } })
 
     // Get config + builtin blocks + available tools for an agent
     .get('/stories/:storyId/agent-blocks/:agentName', async ({ params, set }) => {

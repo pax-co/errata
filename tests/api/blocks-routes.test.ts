@@ -41,6 +41,163 @@ async function createStory(): Promise<string> {
   return data.id
 }
 
+describe('Per-agent config export/import routes', () => {
+  it('GET /agent-blocks/:agentName/export returns config for agent', async () => {
+    const storyId = await createStory()
+    // Ensure agents are registered (normally triggered by other routes)
+    await api('/agent-blocks')
+    // First add a custom block to the agent
+    await apiJson(`/stories/${storyId}/agent-blocks/generation.writer/custom`, {
+      id: 'cb-agexp1',
+      name: 'Agent Export Test',
+      role: 'system',
+      order: 100,
+      enabled: true,
+      type: 'simple',
+      content: 'Custom agent block content',
+    })
+
+    const res = await api(`/stories/${storyId}/agent-blocks/generation.writer/export-config`)
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.agentName).toBe('generation.writer')
+    expect(data.displayName).toBeTypeOf('string')
+    expect(data.config).toBeDefined()
+    expect(data.config.customBlocks).toHaveLength(1)
+    expect(data.config.customBlocks[0].id).toBe('cb-agexp1')
+  })
+
+  it('GET /agent-blocks/:agentName/export returns empty config for uncustomized agent', async () => {
+    const storyId = await createStory()
+    const res = await api(`/stories/${storyId}/agent-blocks/generation.writer/export-config`)
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.config.customBlocks).toEqual([])
+    expect(data.config.overrides).toEqual({})
+  })
+
+  it('GET /agent-blocks/:agentName/export returns 404 for missing story', async () => {
+    const res = await api('/stories/nonexistent/agent-blocks/generation.writer/export-config')
+    expect(res.status).toBe(404)
+  })
+
+  it('GET /agent-blocks/:agentName/export returns 404 for unknown agent', async () => {
+    const storyId = await createStory()
+    const res = await api(`/stories/${storyId}/agent-blocks/nonexistent.agent/export`)
+    expect(res.status).toBe(404)
+  })
+
+  it('POST /agent-blocks/:agentName/import saves config', async () => {
+    const storyId = await createStory()
+    const config = {
+      customBlocks: [{
+        id: 'cb-agimp1',
+        name: 'Imported Agent Block',
+        role: 'user',
+        order: 200,
+        enabled: true,
+        type: 'simple',
+        content: 'Imported content',
+      }],
+      overrides: { instructions: { enabled: false } },
+      blockOrder: ['cb-agimp1'],
+      disabledTools: ['read_fragment'],
+    }
+    const res = await apiJson(`/stories/${storyId}/agent-blocks/generation.writer/import-config`, { config })
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.ok).toBe(true)
+
+    // Verify the config was saved
+    const getRes = await api(`/stories/${storyId}/agent-blocks/generation.writer`)
+    const saved = await getRes.json()
+    expect(saved.config.customBlocks).toHaveLength(1)
+    expect(saved.config.customBlocks[0].id).toBe('cb-agimp1')
+    expect(saved.config.overrides.instructions?.enabled).toBe(false)
+    expect(saved.config.disabledTools).toContain('read_fragment')
+  })
+
+  it('POST /agent-blocks/:agentName/import replaces existing config', async () => {
+    const storyId = await createStory()
+    // Create initial config
+    await apiJson(`/stories/${storyId}/agent-blocks/generation.writer/custom`, {
+      id: 'cb-agold1',
+      name: 'Old Block',
+      role: 'system',
+      order: 100,
+      enabled: true,
+      type: 'simple',
+      content: 'Old content',
+    })
+
+    // Import replaces entirely
+    const config = {
+      customBlocks: [{
+        id: 'cb-agnew1',
+        name: 'New Block',
+        role: 'user',
+        order: 300,
+        enabled: true,
+        type: 'simple',
+        content: 'New content',
+      }],
+      overrides: {},
+      blockOrder: ['cb-agnew1'],
+      disabledTools: [],
+    }
+    await apiJson(`/stories/${storyId}/agent-blocks/generation.writer/import-config`, { config })
+
+    const getRes = await api(`/stories/${storyId}/agent-blocks/generation.writer`)
+    const saved = await getRes.json()
+    expect(saved.config.customBlocks).toHaveLength(1)
+    expect(saved.config.customBlocks[0].id).toBe('cb-agnew1')
+  })
+
+  it('POST /agent-blocks/:agentName/import returns 422 for missing config', async () => {
+    const storyId = await createStory()
+    const res = await apiJson(`/stories/${storyId}/agent-blocks/generation.writer/import-config`, {})
+    expect(res.status).toBe(422)
+  })
+
+  it('POST /agent-blocks/:agentName/import returns 404 for missing story', async () => {
+    const res = await apiJson('/stories/nonexistent/agent-blocks/generation.writer/import-config', {
+      config: { customBlocks: [], overrides: {}, blockOrder: [], disabledTools: [] },
+    })
+    expect(res.status).toBe(404)
+  })
+
+  it('roundtrip: export then import into same agent', async () => {
+    const storyId = await createStory()
+    // Customize
+    await apiJson(`/stories/${storyId}/agent-blocks/generation.writer/custom`, {
+      id: 'cb-round1',
+      name: 'Roundtrip Block',
+      role: 'system',
+      order: 100,
+      enabled: true,
+      type: 'simple',
+      content: 'Roundtrip content',
+    })
+
+    // Export
+    const exportRes = await api(`/stories/${storyId}/agent-blocks/generation.writer/export-config`)
+    const exported = await exportRes.json()
+
+    // Create a second story and import into it
+    const storyId2 = await createStory()
+    const importRes = await apiJson(`/stories/${storyId2}/agent-blocks/generation.writer/import-config`, {
+      config: exported.config,
+    })
+    expect(importRes.status).toBe(200)
+
+    // Verify
+    const getRes = await api(`/stories/${storyId2}/agent-blocks/generation.writer`)
+    const saved = await getRes.json()
+    expect(saved.config.customBlocks).toHaveLength(1)
+    expect(saved.config.customBlocks[0].id).toBe('cb-round1')
+  })
+})
+
 describe('Block config export/import routes', () => {
   it('GET /export-configs returns empty object for fresh story', async () => {
     const storyId = await createStory()
