@@ -96,6 +96,14 @@ export function CharacterChatView({ storyId, initialCharacterId, onClose }: Char
     }
   }, [messages, scrollToBottom])
 
+  // Auto-resize textarea
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 400) + 'px'
+  }, [input])
+
   // Handle character change — reset conversation
   const handleCharacterChange = useCallback((id: string) => {
     setCharacterId(id)
@@ -368,7 +376,7 @@ export function CharacterChatView({ storyId, initialCharacterId, onClose }: Char
                   : 'Select a character first...'
               }
               disabled={isStreaming || !characterId}
-              className="min-h-[44px] max-h-[140px] resize-none text-[0.8125rem] bg-transparent
+              className="min-h-[44px] max-h-[400px] resize-none text-[0.8125rem] bg-transparent
                 placeholder:italic placeholder:text-muted-foreground flex-1 border-border/30
                 focus-visible:ring-primary/20"
               rows={1}

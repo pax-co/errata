@@ -108,6 +108,14 @@ export function LibrarianChat({ storyId, conversationId, initialInput }: Librari
     }
   }, [messages, scrollToBottom])
 
+  // Auto-resize textarea
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 400) + 'px'
+  }, [input])
+
   const handleSend = useCallback(async () => {
     const text = input.trim()
     if (!text || isStreaming) return
@@ -263,7 +271,7 @@ export function LibrarianChat({ storyId, conversationId, initialInput }: Librari
             onKeyDown={handleKeyDown}
             placeholder="Ask the librarian..."
             disabled={isStreaming}
-            className="min-h-[40px] max-h-[120px] resize-none text-xs bg-transparent placeholder:italic placeholder:text-muted-foreground flex-1"
+            className="min-h-[40px] max-h-[400px] resize-none text-xs bg-transparent placeholder:italic placeholder:text-muted-foreground flex-1"
             rows={1}
             data-component-id="librarian-chat-input"
           />
