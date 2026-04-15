@@ -443,6 +443,23 @@ code {
   animation: wisp-gradient 4s ease infinite;
 }
 
+/* ── Spinner (quiet, used by <Spinner>) ──────────────── */
+
+@keyframes spinner-rotate {
+  to { transform: rotate(360deg); }
+}
+
+@utility animate-spinner-rotate {
+  animation: spinner-rotate 1.1s linear infinite;
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-spinner-rotate {
+    animation: none;
+  }
+}
+
 /* ── Character mention preview ───────────────────────── */
 
 .mention-preview-fade {

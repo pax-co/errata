@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Spinner, EmptyState } from '@/components/ui/async-view'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import {
   DropdownMenu,
@@ -15,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Plus, Pin, GripVertical, FileDown, UserPlus, Archive, FolderPlus, ChevronRight, MoreHorizontal, Pencil, Trash2, FolderOpen } from 'lucide-react'
+import { Caption } from '@/components/ui/prose-text'
 
 interface FragmentListProps {
   storyId: string
@@ -161,9 +163,9 @@ const FragmentRow = memo(function FragmentRow({
           )}
         </div>
         {fragment.description && (
-          <p className="text-xs text-muted-foreground truncate mt-0.5">
+          <Caption className="truncate mt-0.5">
             {fragment.description}
-          </p>
+          </Caption>
         )}
       </button>
 
@@ -936,7 +938,11 @@ export function FragmentList({
   const displayList = dragDisplayOrder ?? filtered
 
   if (isLoading) {
-    return <p className="text-sm text-muted-foreground p-4">Loading...</p>
+    return (
+      <div className="flex items-center justify-center p-6">
+        <Spinner size="sm" />
+      </div>
+    )
   }
 
   // Render a list of fragments (used both in flat and grouped views)
@@ -1115,9 +1121,11 @@ export function FragmentList({
           {!useGroupedView && (
             <>
               {displayList.length === 0 && (
-                <p className="text-xs text-muted-foreground py-8 text-center italic">
-                  {search.trim() ? 'No matches' : 'No fragments yet'}
-                </p>
+                <EmptyState
+                  title={search.trim() ? 'No matches' : 'No fragments yet'}
+                  hint={search.trim() ? undefined : 'Create one with the plus above, or let the writing wizard draft a starter set.'}
+                  className="py-8"
+                />
               )}
               {displayList.map((fragment, index) => (
                 <FragmentRow

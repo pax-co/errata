@@ -7,6 +7,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
+import { Spinner, EmptyState } from '@/components/ui/async-view'
 import { BlockContentView } from './BlockContentView'
 
 interface BlockPreviewDialogProps {
@@ -37,13 +38,12 @@ export function BlockPreviewDialog({ storyId, open, onOpenChange }: BlockPreview
         </DialogHeader>
 
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="size-5 rounded-full border-2 border-muted-foreground/15 border-t-muted-foreground/50 animate-spin" />
-            <p className="mt-3 text-[0.6875rem] text-muted-foreground">Compiling context...</p>
+          <div className="flex items-center justify-center py-20">
+            <Spinner label="Compiling context" />
           </div>
         ) : data?.messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <p className="text-xs text-muted-foreground italic">No messages in context</p>
+          <div className="flex items-center justify-center py-20">
+            <EmptyState title="No messages in context" />
           </div>
         ) : data ? (
           <BlockContentView

@@ -19,6 +19,7 @@ import {
 import { BlockCreateDialog } from './BlockCreateDialog'
 import { BlockPreviewDialog } from './BlockPreviewDialog'
 import { ScriptBlockEditor, FragmentReference } from './ScriptBlockEditor'
+import { Spinner, EmptyState } from '@/components/ui/async-view'
 import { cn } from '@/lib/utils'
 import { useHelp } from '@/hooks/use-help'
 import { componentId } from '@/lib/dom-ids'
@@ -271,17 +272,16 @@ export function BlockEditorPanel({ storyId }: BlockEditorPanelProps) {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 text-center">
-        <div className="size-5 rounded-full border-2 border-muted-foreground/15 border-t-muted-foreground/50 animate-spin" />
-        <p className="mt-3 text-[0.6875rem] text-muted-foreground">Loading blocks...</p>
+      <div className="flex items-center justify-center py-24">
+        <Spinner />
       </div>
     )
   }
 
   if (!data) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 text-center">
-        <p className="text-xs text-muted-foreground italic">Failed to load blocks</p>
+      <div className="flex items-center justify-center py-24">
+        <EmptyState title="Could not load blocks" />
       </div>
     )
   }

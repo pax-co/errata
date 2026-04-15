@@ -8,6 +8,7 @@ import {
 } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { EmptyState } from '@/components/ui/async-view'
 import {
   Brain,
   ChevronDown,
@@ -166,12 +167,12 @@ function ActivityContent({ storyId }: { storyId: string }) {
               })}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <Radio className="size-5 text-muted-foreground mb-3" />
-              <p className="text-xs text-muted-foreground italic max-w-[220px]">
-                No activity yet. Agents run automatically after each generation.
-              </p>
-            </div>
+            <EmptyState
+              icon={<Radio className="size-5" />}
+              title="No activity yet"
+              hint="Agents run automatically after each generation."
+              variant="panel"
+            />
           )}
         </section>
       </div>

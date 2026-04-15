@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Spinner, EmptyState } from '@/components/ui/async-view'
 import { Undo2, Trash2, Archive } from 'lucide-react'
 import { componentId } from '@/lib/dom-ids'
 
@@ -58,14 +59,18 @@ export function ArchivePanel({ storyId }: ArchivePanelProps) {
       <ScrollArea className="flex-1" data-component-id="archive-scroll">
         <div className="px-3 pb-3 space-y-1">
           {isLoading && (
-            <p className="text-xs text-muted-foreground text-center py-8">Loading...</p>
+            <div className="flex items-center justify-center py-8">
+              <Spinner size="sm" />
+            </div>
           )}
 
           {!isLoading && filtered.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground" data-component-id="archive-empty">
-              <Archive className="size-8 mb-2" />
-              <p className="text-xs">No archived fragments</p>
-            </div>
+            <EmptyState
+              icon={<Archive className="size-5" />}
+              title={search.trim() ? 'No matches' : 'Nothing archived'}
+              hint={search.trim() ? undefined : 'Archived fragments appear here — drag a fragment onto the archive, or send it here from its menu.'}
+              className="py-10"
+            />
           )}
 
           {filtered.map((fragment) => (

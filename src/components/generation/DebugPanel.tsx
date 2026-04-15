@@ -4,9 +4,11 @@ import { api, type GenerationLog, type GenerationLogSummary } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Spinner, EmptyState } from '@/components/ui/async-view'
 import { StreamMarkdown } from '@/components/ui/stream-markdown'
 import { BlockContentView } from '@/components/blocks/BlockContentView'
 import { X, ChevronDown, ChevronRight, Copy, Check, Brain, FileText } from 'lucide-react'
+import { EmptyHint } from '@/components/ui/prose-text'
 import { cn } from '@/lib/utils'
 
 interface DebugPanelProps {
@@ -62,7 +64,7 @@ export function DebugPanel({ storyId, logId, fragmentId, onClose }: DebugPanelPr
             <ScrollArea className="flex-1">
               <div className="p-1.5 space-y-0.5">
                 {(!logs || logs.length === 0) && (
-                  <p className="text-xs text-muted-foreground py-8 text-center italic">No logs yet</p>
+                  <EmptyState title="No logs yet" className="py-8" />
                 )}
                 {logs?.map((log) => (
                   <LogListItem
@@ -153,11 +155,11 @@ export function DebugPanel({ storyId, logId, fragmentId, onClose }: DebugPanelPr
             </>
           ) : logLoading ? (
             <div className="flex items-center justify-center flex-1">
-              <p className="text-sm text-muted-foreground italic">Loading log...</p>
+              <Spinner />
             </div>
           ) : (
             <div className="flex items-center justify-center flex-1">
-              <p className="text-sm text-muted-foreground italic">Select a generation log to inspect</p>
+              <EmptyHint size="sm" className="font-display">Select a generation log to inspect</EmptyHint>
             </div>
           )}
         </div>
@@ -305,9 +307,9 @@ function ToolsTab({ log }: { log: GenerationLog }) {
 
   if (log.toolCalls.length === 0) {
     return (
-      <p className="text-xs text-muted-foreground text-center py-16 italic">
+      <EmptyHint className="text-center py-16">
         No tool calls were made during this generation.
-      </p>
+      </EmptyHint>
     )
   }
 
