@@ -896,6 +896,8 @@ function AgentBlockEditor({ storyId, agentName, agents, onBack }: AgentBlockEdit
                                     <ScriptBlockEditor
                                       storyId={storyId}
                                       blockId={block.id}
+                                      blockName={block.name}
+                                      blockRole={block.role}
                                       value={block.customDef.content}
                                       onSave={(val) => {
                                         updateCustomMutation.mutate({
@@ -903,6 +905,7 @@ function AgentBlockEditor({ storyId, agentName, agents, onBack }: AgentBlockEdit
                                           updates: { content: val },
                                         })
                                       }}
+                                      context={{ type: 'agent', agentName }}
                                     />
                                     <FragmentReference storyId={storyId} />
                                   </>

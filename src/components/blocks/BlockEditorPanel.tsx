@@ -451,6 +451,8 @@ export function BlockEditorPanel({ storyId }: BlockEditorPanelProps) {
                                 <ScriptBlockEditor
                                   storyId={storyId}
                                   blockId={block.id}
+                                  blockName={block.name}
+                                  blockRole={block.role}
                                   value={block.customDef.content}
                                   onSave={(val) => {
                                     updateCustomMutation.mutate({
@@ -458,6 +460,7 @@ export function BlockEditorPanel({ storyId }: BlockEditorPanelProps) {
                                       updates: { content: val },
                                     })
                                   }}
+                                  context={{ type: 'generation' }}
                                 />
                                 <FragmentReference storyId={storyId} />
                               </>

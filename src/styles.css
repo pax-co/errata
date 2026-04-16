@@ -388,14 +388,13 @@ code {
 /* ── Agent activity wisps ────────────────────────────── */
 
 @keyframes wisp-enter {
-  0% { opacity: 0; transform: scale(0) translateY(8px); }
-  60% { opacity: 1; transform: scale(1.15) translateY(-2px); }
+  0% { opacity: 0; transform: scale(0.6) translateY(6px); }
   100% { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 @keyframes wisp-exit {
   0% { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(0); }
+  100% { opacity: 0; transform: scale(0.8); }
 }
 
 @keyframes wisp-breathe {
@@ -415,11 +414,11 @@ code {
 }
 
 @utility animate-wisp-enter {
-  animation: wisp-enter 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation: wisp-enter 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @utility animate-wisp-exit {
-  animation: wisp-exit 0.3s ease-in both;
+  animation: wisp-exit 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @utility animate-wisp-breathe {
@@ -443,6 +442,25 @@ code {
   animation: wisp-gradient 4s ease infinite;
 }
 
+/* Respect reduced-motion: collapse wisp motion to opacity-only fades
+   and hold the gradient still. The orb remains visible — its presence
+   is the signal; the motion is the flourish. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes wisp-enter {
+    0% { opacity: 0; transform: none; }
+    100% { opacity: 1; transform: none; }
+  }
+  @keyframes wisp-exit {
+    0% { opacity: 1; transform: none; }
+    100% { opacity: 0; transform: none; }
+  }
+  @keyframes wisp-breathe { 0%, 100% { opacity: 1; } }
+  @keyframes wisp-float { 0%, 100% { transform: none; } }
+  @keyframes wisp-gradient {
+    0%, 100% { background-position: 50% 50%; }
+  }
+}
+
 /* ── Spinner (quiet, used by <Spinner>) ──────────────── */
 
 @keyframes spinner-rotate {
@@ -457,6 +475,55 @@ code {
 @media (prefers-reduced-motion: reduce) {
   .animate-spinner-rotate {
     animation: none;
+  }
+}
+
+/* ── Script editor (CodeMirror) ──────────────────────── */
+/* Syntax palette tuned to the bookish bronze/ochre direction.
+   Warm hues for keywords and strings; a quiet cool for numbers;
+   punctuation is foreground at 60% so structure reads without shouting. */
+
+:root {
+  --cm-keyword:     oklch(0.485 0.105 55);
+  --cm-string:      oklch(0.50 0.12 105);
+  --cm-number:      oklch(0.48 0.07 225);
+  --cm-comment:     oklch(0.465 0.022 55);
+  --cm-ident:       oklch(0.185 0.015 55);
+  --cm-function:    oklch(0.485 0.105 55);
+  --cm-type:        oklch(0.55 0.10 55);
+  --cm-active-line: color-mix(in oklch, oklch(0.485 0.105 55) 4%, transparent);
+  --cm-selection:   color-mix(in oklch, oklch(0.485 0.105 55) 18%, transparent);
+}
+
+.dark {
+  --cm-keyword:     oklch(0.80 0.12 65);
+  --cm-string:      oklch(0.78 0.11 105);
+  --cm-number:      oklch(0.74 0.08 225);
+  --cm-comment:     oklch(0.555 0.018 60);
+  --cm-ident:       oklch(0.895 0.015 75);
+  --cm-function:    oklch(0.80 0.12 65);
+  --cm-type:        oklch(0.72 0.10 65);
+  --cm-active-line: color-mix(in oklch, oklch(0.765 0.105 65) 6%, transparent);
+  --cm-selection:   color-mix(in oklch, oklch(0.765 0.105 65) 22%, transparent);
+}
+
+.high-contrast {
+  --cm-keyword:     #ffff00;
+  --cm-string:      #00ffff;
+  --cm-number:      #ff8800;
+  --cm-comment:     #e6e6e6;
+  --cm-ident:       #ffffff;
+  --cm-function:    #ffff00;
+  --cm-type:        #00ff00;
+  --cm-active-line: #1a1a1a;
+  --cm-selection:   #333333;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cm-cursor,
+  .cm-dropCursor {
+    animation: none !important;
+    opacity: 1 !important;
   }
 }
 
