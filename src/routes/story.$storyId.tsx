@@ -64,9 +64,7 @@ function StoryEditorPage() {
   const [mainView, setMainView] = useState<'prose' | 'character-chat'>('prose')
   const [activeSection, setActiveSection] = useState<SidebarSection>(null)
   const [selectedFragment, setSelectedFragment] = useState<Fragment | null>(null)
-  const [editorMode, setEditorMode] = useState<'view' | 'edit' | 'create'>('view')
-  const [createType, setCreateType] = useState<string>('prose')
-  const [createPrefill, setCreatePrefill] = useState<FragmentPrefill | null>(null)
+  const [editorMode, setEditorMode] = useState<'view' | 'edit'>('view')
   const [showWizard, setShowWizard] = useState<boolean | null>(null)
   const [debugLogId, setDebugLogId] = useState<string | null>(null)
   const [showProviders, setShowProviders] = useState(false)
@@ -245,18 +243,33 @@ function StoryEditorPage() {
     notifyPluginPanelOpen({ panel: 'fragment-editor', fragment, mode: 'edit' }, { storyId })
   }
 
-  const handleCreateFragment = (type: string, prefill?: FragmentPrefill) => {
-    setSelectedFragment(null)
-    setCreateType(type)
-    setCreatePrefill(prefill ?? null)
-    setEditorMode('create')
+  const handleCreateFragment = async (type: string, prefill?: FragmentPrefill) => {
+    let created: Fragment
+    try {
+      created = await api.fragments.create(storyId, {
+        type,
+        name: prefill?.name ?? '',
+        description: prefill?.description ?? '',
+        content: prefill?.content ?? '',
+      })
+    } catch {
+      return
+    }
+    queryClient.invalidateQueries({
+      queryKey: ['fragments', storyId],
+      predicate: (q) => {
+        const typeSlot = q.queryKey[2]
+        return typeSlot === undefined || typeSlot === type
+      },
+    })
+    setSelectedFragment(created)
+    setEditorMode('edit')
     if (isMobile) setActiveSection(null)
-    notifyPluginPanelOpen({ panel: 'fragment-editor', mode: 'create' }, { storyId })
+    notifyPluginPanelOpen({ panel: 'fragment-editor', fragment: created, mode: 'edit' }, { storyId })
   }
 
   const handleEditorClose = () => {
     setSelectedFragment(null)
-    setCreatePrefill(null)
     setEditorMode('view')
     notifyPluginPanelClose({ panel: 'fragment-editor' }, { storyId })
   }
@@ -278,7 +291,6 @@ function StoryEditorPage() {
         }
         return null
       })
-      setCreatePrefill(null)
       setEditorMode('view')
       setDebugLogId((prev) => {
         if (prev) notifyPluginPanelClose({ panel: 'debug' }, { storyId })
@@ -744,17 +756,8 @@ function StoryEditorPage() {
               storyId={storyId}
               fragment={selectedFragment}
               mode={editorMode}
-              createType={createType}
-              prefill={createPrefill}
               onClose={handleEditorClose}
-              onSaved={(created) => {
-                if (created) {
-                  setSelectedFragment(created)
-                  setCreatePrefill(null)
-                  setEditorMode('edit')
-                  notifyPluginPanelOpen({ panel: 'fragment-editor', fragment: created, mode: 'edit' }, { storyId })
-                }
-              }}
+              onSaved={() => {}}
             />
           </div>
         )}

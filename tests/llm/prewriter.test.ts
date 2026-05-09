@@ -5,6 +5,7 @@ import {
   createStory,
   createFragment,
 } from '@/server/fragments/storage'
+import { saveAgentBlockConfig } from '@/server/agents/agent-block-storage'
 import type { StoryMeta, Fragment } from '@/server/fragments/schema'
 
 const { mockAgentCtor, mockAgentStream } = vi.hoisted(() => ({
@@ -473,6 +474,152 @@ describe('prewriter', () => {
         : prewriterUserMsg2?.content?.map((p: any) => p.text).join('') ?? ''
 
       expect(prewriterText2).toContain('REGENERATE')
+    })
+
+    it('writer custom blocks do not leak into prewriter context', async () => {
+      await createStory(dataDir, makeStory({ generationMode: 'prewriter' }))
+
+      await saveAgentBlockConfig(dataDir, storyId, 'generation.writer', {
+        customBlocks: [
+          { id: 'cb-writeronly', name: 'Writer Debug', role: 'user', order: 300, enabled: true, type: 'simple', content: 'WRITER_ONLY_SENTINEL' },
+        ],
+        overrides: {},
+        blockOrder: [],
+        disabledTools: [],
+      })
+
+      let callCount = 0
+      mockAgentStream.mockImplementation(() => {
+        callCount++
+        if (callCount === 1) return createMockStreamResult('A brief.') as any
+        return createMockStreamResult('Some prose.') as any
+      })
+
+      const res = await apiCall(`/stories/${storyId}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: 'Continue', saveResult: false }),
+      })
+      expect(res.status).toBe(200)
+      await res.text()
+
+      // Prewriter should NOT see the writer's custom block
+      const prewriterArgs = mockAgentStream.mock.calls[0][0] as any
+      const prewriterMessages = prewriterArgs.messages!
+      const prewriterText = prewriterMessages
+        .map((m: any) => typeof m.content === 'string' ? m.content : m.content?.map((p: any) => p.text).join('') ?? '')
+        .join('\n')
+      expect(prewriterText).not.toContain('WRITER_ONLY_SENTINEL')
+
+      // Writer SHOULD see it
+      const writerArgs = mockAgentStream.mock.calls[1][0] as any
+      const writerMessages = writerArgs.messages!
+      const writerText = writerMessages
+        .map((m: any) => typeof m.content === 'string' ? m.content : m.content?.map((p: any) => p.text).join('') ?? '')
+        .join('\n')
+      expect(writerText).toContain('WRITER_ONLY_SENTINEL')
+    })
+
+    it('author-input does not leak into prewriter full-context', async () => {
+      await createStory(dataDir, makeStory({ generationMode: 'prewriter' }))
+
+      let callCount = 0
+      mockAgentStream.mockImplementation(() => {
+        callCount++
+        if (callCount === 1) return createMockStreamResult('A brief.') as any
+        return createMockStreamResult('Some prose.') as any
+      })
+
+      const res = await apiCall(`/stories/${storyId}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: 'Continue the story', saveResult: false }),
+      })
+      expect(res.status).toBe(200)
+      await res.text()
+
+      const prewriterArgs = mockAgentStream.mock.calls[0][0] as any
+      const prewriterMessages = prewriterArgs.messages!
+      const prewriterText = prewriterMessages
+        .map((m: any) => typeof m.content === 'string' ? m.content : m.content?.map((p: any) => p.text).join('') ?? '')
+        .join('\n')
+
+      // The author direction should appear via planning-request, not via author-input
+      expect(prewriterText).not.toContain('[@block=author-input]')
+      // planning-request should still carry the direction
+      expect(prewriterText).toContain('CONTINUE')
+    })
+
+    it('prewriter custom blocks do not leak into writer context', async () => {
+      await createStory(dataDir, makeStory({ generationMode: 'prewriter' }))
+
+      await saveAgentBlockConfig(dataDir, storyId, 'generation.prewriter', {
+        customBlocks: [
+          { id: 'cb-prewritonly', name: 'Prewriter Debug', role: 'user', order: 300, enabled: true, type: 'simple', content: 'PREWRITER_ONLY_SENTINEL' },
+        ],
+        overrides: {},
+        blockOrder: [],
+        disabledTools: [],
+      })
+
+      let callCount = 0
+      mockAgentStream.mockImplementation(() => {
+        callCount++
+        if (callCount === 1) return createMockStreamResult('A brief.') as any
+        return createMockStreamResult('Some prose.') as any
+      })
+
+      const res = await apiCall(`/stories/${storyId}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: 'Continue', saveResult: false }),
+      })
+      expect(res.status).toBe(200)
+      await res.text()
+
+      // Writer should NOT see the prewriter's custom block
+      const writerArgs = mockAgentStream.mock.calls[1][0] as any
+      const writerMessages = writerArgs.messages!
+      const writerText = writerMessages
+        .map((m: any) => typeof m.content === 'string' ? m.content : m.content?.map((p: any) => p.text).join('') ?? '')
+        .join('\n')
+      expect(writerText).not.toContain('PREWRITER_ONLY_SENTINEL')
+    })
+
+    it('writer writing-brief disabled override is respected in prewriter mode', async () => {
+      await createStory(dataDir, makeStory({ generationMode: 'prewriter' }))
+
+      await saveAgentBlockConfig(dataDir, storyId, 'generation.writer', {
+        customBlocks: [],
+        overrides: { 'writing-brief': { enabled: false } },
+        blockOrder: [],
+        disabledTools: [],
+      })
+
+      let callCount = 0
+      mockAgentStream.mockImplementation(() => {
+        callCount++
+        if (callCount === 1) return createMockStreamResult('The brief content.') as any
+        return createMockStreamResult('Some prose.') as any
+      })
+
+      const res = await apiCall(`/stories/${storyId}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: 'Continue', saveResult: false }),
+      })
+      expect(res.status).toBe(200)
+      await res.text()
+
+      const writerArgs = mockAgentStream.mock.calls[1][0] as any
+      const writerMessages = writerArgs.messages!
+      const writerText = writerMessages
+        .map((m: any) => typeof m.content === 'string' ? m.content : m.content?.map((p: any) => p.text).join('') ?? '')
+        .join('\n')
+
+      // writing-brief block should be absent when disabled
+      expect(writerText).not.toContain('[@block=writing-brief]')
+      expect(writerText).not.toContain('Writing Brief')
     })
   })
 })

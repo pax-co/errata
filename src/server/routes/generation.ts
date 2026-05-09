@@ -182,12 +182,21 @@ export function generationRoutes(dataDir: string) {
       }
       requestLogger.info('Tools prepared', { toolCount: Object.keys(tools).length })
 
+      const scriptContext = { ...ctxState, ...createScriptHelpers(dataDir, params.storyId) }
       let blocks = createDefaultBlocks(ctxState, extraTools.length > 0 ? { extraTools } : undefined)
-      blocks = await applyBlockConfig(blocks, agentConfig, {
-        ...ctxState,
-        ...createScriptHelpers(dataDir, params.storyId),
-      })
+      blocks = await applyBlockConfig(blocks, agentConfig, scriptContext)
       blocks = await runBeforeBlocks(enabledPlugins, blocks)
+
+      // In prewriter mode, strip writer-only blocks from the context that gets
+      // dumped into the prewriter's full-context block. The prewriter has its own
+      // planning-request for author direction and its own custom blocks — writer
+      // custom blocks and author-input would leak through and bypass the
+      // prewriter's block config.
+      const isPrewriterMode = story.settings.generationMode === 'prewriter'
+      if (isPrewriterMode) {
+        blocks = blocks.filter(b => b.id !== 'author-input' && b.source !== 'custom')
+      }
+
       let messages = compileBlocks(blocks)
       messages = await runBeforeGeneration(enabledPlugins, messages)
       requestLogger.info('BeforeGeneration hooks completed', { messageCount: messages.length })
@@ -201,7 +210,6 @@ export function generationRoutes(dataDir: string) {
       let prewriterLogMessages: Array<{ role: string; content: string }> | undefined
       let prewriterDirections: Array<{ pacing: string; title: string; description: string; instruction: string }> | undefined
       let logMessages = messages // messages saved to generation log — updated to writer context in prewriter mode
-      const isPrewriterMode = story.settings.generationMode === 'prewriter'
 
       const modelMessages = addCacheBreakpoints(messages)
 
@@ -289,14 +297,12 @@ export function generationRoutes(dataDir: string) {
                 }
                 requestLogger.info('Prewriter completed', { briefLength: prewriterBrief.length, durationMs: prewriterDurationMs, stepCount: prewriterStepCount, directionsCount: prewriterDirections?.length ?? 0 })
 
-                // Build stripped writer context with only prose + brief + custom blocks
+                // Build stripped writer context with only prose + brief + custom blocks,
+                // then apply the writer's agent block config so overrides (e.g. disabled
+                // blocks like writing-brief) are respected.
                 const writerBlocks = createWriterBriefBlocks(ctxState.proseFragments, prewriterResult.brief, toolLinesList, resolvedModelId)
-
-                // Carry over: generation custom blocks, system-placement fragments, guideline blocks,
-                // and custom blocks from the prewriter's agent block config
-                const carryOverBlocks = blocks.filter(b => b.source === 'custom' || b.id === 'system-fragments' || b.id.startsWith('gl-'))
-                writerBlocks.push(...carryOverBlocks, ...prewriterResult.customBlocks)
-                let writerCompiled = compileBlocks(writerBlocks)
+                const finalWriterBlocks = await applyBlockConfig(writerBlocks, agentConfig, scriptContext)
+                let writerCompiled = compileBlocks(finalWriterBlocks)
                 writerCompiled = await expandMessagesFragmentTags(writerCompiled, dataDir, params.storyId)
                 writerMessages = addCacheBreakpoints(writerCompiled)
                 logMessages = writerCompiled

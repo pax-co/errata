@@ -24,19 +24,15 @@ export interface FragmentPrefill {
 interface FragmentEditorProps {
   storyId: string
   fragment: Fragment | null
-  mode: 'view' | 'edit' | 'create'
-  createType?: string
-  prefill?: FragmentPrefill | null
+  mode: 'view' | 'edit'
   onClose: () => void
-  onSaved: (created?: Fragment) => void
+  onSaved: () => void
 }
 
 export function FragmentEditor({
   storyId,
   fragment: fragmentProp,
   mode,
-  createType,
-  prefill,
   onClose,
   onSaved,
 }: FragmentEditorProps) {
@@ -44,7 +40,7 @@ export function FragmentEditor({
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [content, setContent] = useState('')
-  const [type, setType] = useState(createType ?? 'prose')
+  const [type, setType] = useState('prose')
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [showRefine, setShowRefine] = useState(false)
@@ -119,13 +115,8 @@ export function FragmentEditor({
         setContent(sourceFragment.content)
       }
       setType(sourceFragment.type)
-    } else {
-      setName(prefill?.name ?? '')
-      setDescription(prefill?.description ?? '')
-      setContent(prefill?.content ?? '')
-      setType(createType ?? 'prose')
     }
-  }, [sourceFragment, createType, prefill, fragmentProp?.id])
+  }, [sourceFragment, fragmentProp?.id])
 
   const invalidate = async (overrideType?: string) => {
     const fType = overrideType ?? fragment?.type
@@ -149,15 +140,6 @@ export function FragmentEditor({
     }
     await Promise.all(promises)
   }
-
-  const createMutation = useMutation({
-    mutationFn: (data: { type: string; name: string; description: string; content: string }) =>
-      api.fragments.create(storyId, data),
-    onSuccess: (created) => {
-      invalidate(created.type)
-      onSaved(created)
-    },
-  })
 
   const updateMutation = useMutation({
     mutationFn: (data: { name: string; description: string; content: string }) =>
@@ -399,14 +381,11 @@ export function FragmentEditor({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (mode === 'create') {
-      createMutation.mutate({ type, name, description, content })
-    }
-    // In edit mode, auto-save handles persistence
+    // Auto-save handles persistence in edit mode
   }
 
-  const isEditing = mode === 'edit' || mode === 'create'
-  const isPending = createMutation.isPending || updateMutation.isPending
+  const isEditing = mode === 'edit'
+  const isPending = updateMutation.isPending
   const isMediaType = type === 'image' || type === 'icon'
 
   const handleImageUpload = async (file: File) => {
@@ -449,7 +428,7 @@ export function FragmentEditor({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 sm:px-6 py-3 sm:py-4 gap-2 border-b border-border/50" data-component-id={componentId('fragment-editor', mode)}>
         <div className="flex items-center gap-2.5 min-w-0">
           <h2 className="font-display text-lg truncate">
-            {mode === 'create' ? 'New Fragment' : fragment?.name ?? ''}
+            {fragment?.name ?? ''}
           </h2>
           {fragment && (
             <div className="flex items-center gap-1.5 shrink-0">
@@ -465,7 +444,7 @@ export function FragmentEditor({
           )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0 overflow-x-auto">
-          {fragment && mode !== 'create' && (
+          {fragment && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -486,7 +465,7 @@ export function FragmentEditor({
               <TooltipContent side="bottom">Copy fragment to clipboard</TooltipContent>
             </Tooltip>
           )}
-          {fragment && !fragment.archived && mode !== 'create' && fragment.type !== 'prose' && fragment.type !== 'image' && fragment.type !== 'icon' && (
+          {fragment && !fragment.archived && fragment.type !== 'prose' && fragment.type !== 'image' && fragment.type !== 'icon' && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -502,7 +481,7 @@ export function FragmentEditor({
               <TooltipContent side="bottom">Refine this fragment with Librarian</TooltipContent>
             </Tooltip>
           )}
-          {fragment && !fragment.archived && mode !== 'create' && fragment.type !== 'prose' && (
+          {fragment && !fragment.archived && fragment.type !== 'prose' && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -555,7 +534,7 @@ export function FragmentEditor({
               <TooltipContent side="bottom">{fragment.placement === 'system' ? 'Placed in system context' : 'Placed in user context'}</TooltipContent>
             </Tooltip>
           )}
-          {fragment && !fragment.archived && mode !== 'create' && (
+          {fragment && !fragment.archived && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -576,7 +555,7 @@ export function FragmentEditor({
               <TooltipContent side="bottom">Move to archive</TooltipContent>
             </Tooltip>
           )}
-          {fragment && fragment.archived && mode !== 'create' && (
+          {fragment && fragment.archived && (
             <>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -640,25 +619,6 @@ export function FragmentEditor({
 
       <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-auto">
         <div className="px-4 sm:px-6 py-4 sm:py-5 space-y-4">
-          {mode === 'create' && (
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block uppercase tracking-wider">Type</label>
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value)}
-                className="w-full rounded-md border border-border/50 bg-transparent px-3 py-2 text-sm"
-                data-component-id="fragment-editor-type-select"
-              >
-                <option value="prose">Prose</option>
-                <option value="character">Character</option>
-                <option value="guideline">Guideline</option>
-                <option value="knowledge">Knowledge</option>
-                <option value="image">Image</option>
-                <option value="icon">Icon</option>
-              </select>
-            </div>
-          )}
-
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1.5 block uppercase tracking-wider">Name</label>
             <Input
@@ -849,7 +809,7 @@ export function FragmentEditor({
               )}
 
               <div className="flex items-center justify-between mt-1.5">
-                {fragment && !fragment.archived && mode !== 'create' && !isLocked && fragment.type !== 'prose' ? (
+                {fragment && !fragment.archived && !isLocked && fragment.type !== 'prose' ? (
                   <button
                     type="button"
                     onClick={freezeSelection}
@@ -970,27 +930,14 @@ export function FragmentEditor({
 
         {isEditing && (
           <div className="flex items-center gap-2 px-6 py-4 border-t border-border/50">
-            {mode === 'create' ? (
-              <>
-                <Button type="submit" size="sm" disabled={isPending}>
-                  {isPending ? 'Creating...' : 'Create'}
-                </Button>
-                <Button type="button" size="sm" variant="ghost" onClick={handleClose}>
-                  Cancel
-                </Button>
-              </>
-            ) : (
-              <>
-                <MetaLabel className="transition-opacity">
-                  {saveStatus === 'saving' && 'Saving...'}
-                  {saveStatus === 'saved' && 'Saved'}
-                </MetaLabel>
-                <div className="flex-1" />
-                <Button type="button" size="sm" variant="ghost" onClick={handleClose}>
-                  Close
-                </Button>
-              </>
-            )}
+            <MetaLabel className="transition-opacity">
+              {saveStatus === 'saving' && 'Saving...'}
+              {saveStatus === 'saved' && 'Saved'}
+            </MetaLabel>
+            <div className="flex-1" />
+            <Button type="button" size="sm" variant="ghost" onClick={handleClose}>
+              Close
+            </Button>
           </div>
         )}
       </form>
