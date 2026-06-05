@@ -241,12 +241,19 @@ export function useIsReadingFragment(id: string): boolean {
 /** A natural breath inserted between chunks so sentences don't run together. */
 const INTER_CHUNK_PAUSE_MS = 280
 
+function ttsLog(message: string): void {
+  // eslint-disable-next-line no-console
+  console.info(`[tts] ${message}`)
+}
+
 interface Session {
   id: string
   chunks: string[]
   settings: TtsSettings
   token: number
   blobs: Map<number, Promise<Blob>>
+  /** Indices whose audio has finished synthesizing (pre-generated, ready to play). */
+  ready: Set<number>
   audio: HTMLAudioElement | null
 }
 
@@ -383,11 +390,22 @@ function browserPlay(i: number) {
 
 function ensureSynth(i: number) {
   if (!session || i < 0 || i >= session.chunks.length) return
-  if (!session.blobs.has(i)) session.blobs.set(i, synthChunk(session.settings.piperVoiceId, session.chunks[i]))
+  if (session.blobs.has(i)) return
+  const s = session
+  const n = s.chunks.length
+  const t0 = performance.now()
+  ttsLog(`▶ generating chunk ${i + 1}/${n} (${s.chunks[i].length} chars)`)
+  const p = synthChunk(s.settings.piperVoiceId, s.chunks[i])
+  s.blobs.set(i, p)
+  p.then(
+    () => { if (s.token === token) { s.ready.add(i); ttsLog(`✓ chunk ${i + 1}/${n} ready in ${Math.round(performance.now() - t0)}ms`) } },
+    (err) => ttsLog(`✗ chunk ${i + 1}/${n} failed: ${err instanceof Error ? err.message : String(err)}`),
+  )
 }
 
 /** Synthesize every chunk in order, racing ahead of playback to fill the buffer. */
 function startPiperProducer(s: Session) {
+  ttsLog(`queued ${s.chunks.length} chunk(s) for background synthesis`)
   void (async () => {
     for (let i = 0; i < s.chunks.length; i++) {
       if (token !== s.token) return
@@ -403,8 +421,10 @@ async function piperPlay(i: number) {
   if (i >= session.chunks.length) { stopTts(); return }
 
   ensureSynth(i)
-  // If the buffer hasn't caught up yet, reflect that as loading.
-  emit({ chunkIndex: i, status: 'loading' })
+  // Pre-generated chunks play seamlessly; only show loading when truly waiting.
+  const wasReady = session.ready.has(i)
+  ttsLog(`♪ playing chunk ${i + 1}/${session.chunks.length}${wasReady ? '' : ' (waiting for synthesis)'}`)
+  emit({ chunkIndex: i, status: wasReady ? 'playing' : 'loading' })
 
   let blob: Blob
   try {
@@ -442,7 +462,7 @@ export function playFragment(id: string, rawText: string, title: string, setting
   if (chunks.length === 0) return
 
   const t = ++token
-  session = { id, chunks, settings, token: t, blobs: new Map(), audio: null }
+  session = { id, chunks, settings, token: t, blobs: new Map(), ready: new Set(), audio: null }
   emit({
     status: 'loading',
     activeId: id,
