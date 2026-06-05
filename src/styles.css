@@ -558,3 +558,10 @@ code {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* ── Read-aloud player: indeterminate progress while the first chunk
+   is being synthesized. Reduced-motion holds a full quiet bar. ──── */
+@keyframes tts-indeterminate {
+  0%   { transform: translateX(-110%); }
+  100% { transform: translateX(320%); }
+}
