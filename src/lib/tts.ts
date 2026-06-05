@@ -141,6 +141,15 @@ export function toPlainText(md: string): string {
     .replace(/^\s*[-*+]\s+/gm, '')                // list bullets
     .replace(/^\s*[-*_]{3,}\s*$/gm, ' ')          // horizontal rules
     .replace(/(\*\*\*|\*\*|\*|___|__|_|~~)/g, '') // emphasis markers
+    // Normalize typography to ASCII the phonemizer handles reliably, and drop
+    // symbols/emoji that have no spoken form (and can crash neural synthesis
+    // with out-of-range phoneme ids).
+    .replace(/[‘’‚‛′]/g, "'")
+    .replace(/[“”„‟″]/g, '"')
+    .replace(/[–—―]/g, ' - ')
+    .replace(/…/g, '...')
+    .replace(/ /g, ' ')
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}️‍]/gu, '')
     .replace(/\r\n/g, '\n')
     .replace(/([.!?…])[ \t]*\n{2,}[ \t]*/g, '$1 ') // para break after end-punctuation: keep it
     .replace(/\n{2,}/g, '. ')                       // other para breaks → spoken pause
@@ -254,6 +263,8 @@ interface Session {
   blobs: Map<number, Promise<Blob>>
   /** Indices whose audio has finished synthesizing (pre-generated, ready to play). */
   ready: Set<number>
+  /** Whether at least one chunk has actually played (to detect total failure). */
+  played: boolean
   audio: HTMLAudioElement | null
 }
 
@@ -399,7 +410,7 @@ function ensureSynth(i: number) {
   s.blobs.set(i, p)
   p.then(
     () => { if (s.token === token) { s.ready.add(i); ttsLog(`✓ chunk ${i + 1}/${n} ready in ${Math.round(performance.now() - t0)}ms`) } },
-    (err) => ttsLog(`✗ chunk ${i + 1}/${n} failed: ${err instanceof Error ? err.message : String(err)}`),
+    (err) => ttsLog(`✗ chunk ${i + 1}/${n} failed: ${err instanceof Error ? err.message : String(err)} — text: ${JSON.stringify(s.chunks[i].slice(0, 80))}`),
   )
 }
 
@@ -418,7 +429,12 @@ function startPiperProducer(s: Session) {
 async function piperPlay(i: number) {
   const t = token
   if (!alive(t) || !session) return
-  if (i >= session.chunks.length) { stopTts(); return }
+  if (i >= session.chunks.length) {
+    // Reached the end. If nothing ever played, every chunk failed — surface it.
+    if (!session.played) { emit({ status: 'idle', activeId: null, error: 'Could not synthesize this passage.' }); reset() }
+    else stopTts()
+    return
+  }
 
   ensureSynth(i)
   // Pre-generated chunks play seamlessly; only show loading when truly waiting.
@@ -429,9 +445,10 @@ async function piperPlay(i: number) {
   let blob: Blob
   try {
     blob = await session.blobs.get(i)!
-  } catch (err) {
-    if (alive(t)) emit({ status: 'idle', error: err instanceof Error ? err.message : 'Speech generation failed.' })
-    reset()
+  } catch {
+    // One bad chunk shouldn't end the whole read — skip it and keep going.
+    ttsLog(`↷ skipping chunk ${i + 1}/${session.chunks.length} (synthesis failed)`)
+    if (alive(t)) scheduleAdvance(i + 1, (n) => { void piperPlay(n) })
     return
   }
   if (!alive(t) || !session) return
@@ -445,6 +462,7 @@ async function piperPlay(i: number) {
   }
   audio.onerror = () => { if (alive(t)) scheduleAdvance(i + 1, (n) => { void piperPlay(n) }) }
   session.audio = audio
+  session.played = true
   emit({ chunkIndex: i, status: 'playing' })
   try { await audio.play() } catch { /* autoplay/interruption — state already set */ }
 }
@@ -462,7 +480,7 @@ export function playFragment(id: string, rawText: string, title: string, setting
   if (chunks.length === 0) return
 
   const t = ++token
-  session = { id, chunks, settings, token: t, blobs: new Map(), ready: new Set(), audio: null }
+  session = { id, chunks, settings, token: t, blobs: new Map(), ready: new Set(), played: false, audio: null }
   emit({
     status: 'loading',
     activeId: id,

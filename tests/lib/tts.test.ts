@@ -57,6 +57,19 @@ describe('toPlainText', () => {
   it('collapses paragraph breaks into sentence pauses', () => {
     expect(toPlainText('One.\n\nTwo.')).toBe('One. Two.')
   })
+
+  it('normalizes smart quotes to ASCII', () => {
+    expect(toPlainText('“Hello” ‘world’')).toBe('"Hello" \'world\'')
+  })
+
+  it('normalizes dashes and ellipsis the phonemizer handles', () => {
+    expect(toPlainText('wait… a—b')).toBe('wait... a - b')
+    expect(toPlainText('a b')).toBe('a b') // non-breaking space → space
+  })
+
+  it('drops emoji/symbols that have no spoken form', () => {
+    expect(toPlainText('hi \u{1F600} there ✨')).toBe('hi there')
+  })
 })
 
 describe('chunkText', () => {
