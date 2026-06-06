@@ -570,9 +570,13 @@ code {
    Scroll regions and the sidebar footer reserve that space at the bottom so
    their last items (incl. the Settings button) aren't hidden behind the bar.
    Zero (the fallback) when no bar is shown. */
-[data-slot="scroll-area-viewport"],
-[data-slot="sidebar-footer"] {
+[data-slot="scroll-area-viewport"] {
   padding-bottom: var(--tts-bar-height, 0px);
+}
+/* The sidebar footer keeps its own base padding (p-2) and only *adds* the bar
+   height, so the Settings button isn't flush against the bottom edge. */
+[data-slot="sidebar-footer"] {
+  padding-bottom: calc(0.5rem + var(--tts-bar-height, 0px));
 }
 
 /* Radix ScrollArea wraps content in an inline-styled `display: table` element.
