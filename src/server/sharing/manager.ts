@@ -55,8 +55,13 @@ function handleProxyRequest(req: IncomingMessage, res: ServerResponse) {
     res.end('Authentication required.')
     return
   }
+  const port = appPort()
+  // Rewrite Host to the local app so the upstream never sees the external
+  // hostname — required because Vite dev rejects unknown Hosts (allowedHosts),
+  // and it's harmless in production.
+  const headers = { ...req.headers, host: `localhost:${port}` }
   const proxyReq = request(
-    { hostname: state.upstreamHost, port: appPort(), path: req.url, method: req.method, headers: req.headers },
+    { hostname: state.upstreamHost, port, path: req.url, method: req.method, headers },
     (proxyRes) => {
       res.writeHead(proxyRes.statusCode || 502, proxyRes.headers)
       proxyRes.pipe(res)
