@@ -450,7 +450,7 @@ export function SettingsPanel({
   return (
     <div className="p-4 space-y-4" data-component-id="settings-panel-root">
       {/* Appearance */}
-      <div>
+      <div id="set-appearance" data-toc="Appearance" className="scroll-mt-2">
         <label className="text-[0.625rem] text-muted-foreground uppercase tracking-wider mb-2 block">Appearance</label>
         <div className="rounded-lg border border-border/30 divide-y divide-border/20">
           <SettingRow label="Theme">
@@ -547,7 +547,7 @@ export function SettingsPanel({
       </div>
 
       {/* Typography */}
-      <div>
+      <div id="set-typography" data-toc="Typography" className="scroll-mt-2">
         <div className="flex items-center justify-between mb-2">
           <label className="text-[0.625rem] text-muted-foreground uppercase tracking-wider">Typography</label>
           {hasCustomFonts && (
@@ -593,10 +593,10 @@ export function SettingsPanel({
       </div>
 
       {/* Read aloud (TTS) */}
-      <TtsSettings />
+      <div id="set-read-aloud" data-toc="Read aloud" className="scroll-mt-2"><TtsSettings /></div>
 
       {/* Writing */}
-      <div>
+      <div id="set-writing" data-toc="Writing" className="scroll-mt-2">
         <label className="text-[0.625rem] text-muted-foreground uppercase tracking-wider mb-2 block">Writing</label>
         <div className="rounded-lg border border-border/30 divide-y divide-border/20">
           <button
@@ -635,7 +635,7 @@ export function SettingsPanel({
       </div>
 
       {/* Generation */}
-      <div>
+      <div id="set-generation" data-toc="Generation" className="scroll-mt-2">
         <div className="flex items-center gap-1.5 mb-2">
           <label className="text-[0.625rem] text-muted-foreground uppercase tracking-wider">Generation</label>
           <button
@@ -872,15 +872,20 @@ export function SettingsPanel({
       </div>
 
       {/* LLM */}
-      <LLMSection
+      <div id="set-providers" data-toc="Providers" className="scroll-mt-2">
+        <LLMSection
         story={story}
         globalConfig={globalConfig ?? null}
         updateMutation={updateMutation}
         onManageProviders={onManageProviders}
       />
+      </div>
+
+      {/* Remote access (auth + LAN + tunnel) */}
+      <div id="set-remote" data-toc="Remote" className="scroll-mt-2"><SharingPanel /></div>
 
       {/* Plugins */}
-      <div>
+      <div id="set-plugins" data-toc="Plugins" className="scroll-mt-2">
         <div className="flex items-center gap-1.5 mb-3">
           <label className="text-[0.625rem] text-muted-foreground uppercase tracking-wider">Plugins</label>
           <button
@@ -965,9 +970,6 @@ export function SettingsPanel({
           </div>
         )}
       </div>
-
-      {/* Sharing (Basic Auth + LAN + tunnel) */}
-      <SharingPanel />
 
       {/* Attribution */}
       <div className="pt-4 mt-2 border-t border-border/20">

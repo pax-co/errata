@@ -94,7 +94,7 @@ export function SharingPanel() {
 
   return (
     <div>
-      <label className="mb-2 block text-[0.625rem] uppercase tracking-wider text-muted-foreground">Sharing</label>
+      <label className="mb-2 block text-[0.625rem] uppercase tracking-wider text-muted-foreground">Remote</label>
       <div className="space-y-3 rounded-lg border border-border/30 p-3">
         {/* Authentication */}
         <div className="space-y-2">
