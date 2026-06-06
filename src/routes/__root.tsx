@@ -82,7 +82,9 @@ window.__errata_loaded_fonts=active;
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    // The theme/font boot scripts mutate <html> (class, style) before React
+    // hydrates, which is an intentional, expected hydration difference.
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
