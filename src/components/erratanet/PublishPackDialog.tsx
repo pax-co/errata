@@ -18,7 +18,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   UploadCloud,
   Loader2,
@@ -53,6 +52,16 @@ const LICENSES = [
 ] as const
 
 type BumpKind = 'patch' | 'minor' | 'major'
+
+type ContentRating = 'general' | 'mature' | 'r18'
+
+const CONTENT_RATINGS: { value: ContentRating; label: string; hint: string }[] = [
+  { value: 'general', label: 'General', hint: 'Suitable for everyone.' },
+  { value: 'mature', label: 'Mature', hint: 'Mature themes; not explicit.' },
+  { value: 'r18', label: 'R18', hint: 'Explicit adult content. Marked NSFW.' },
+]
+
+const README_MAX = 8000
 
 const sectionLabel =
   'text-[0.5625rem] text-muted-foreground uppercase tracking-[0.15em] font-medium mb-2'
@@ -101,10 +110,11 @@ export function PublishPackDialog({
   const [slug, setSlug] = useState('')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [readme, setReadme] = useState('')
   const [license, setLicense] = useState<string>(LICENSES[1].value)
   const [tags, setTags] = useState<string[]>([])
   const [tagDraft, setTagDraft] = useState('')
-  const [nsfw, setNsfw] = useState(false)
+  const [contentRating, setContentRating] = useState<ContentRating>('general')
   const [visibility, setVisibility] = useState<'public' | 'unlisted'>('public')
   const [bump, setBump] = useState<BumpKind>('patch')
   const [thumbnailId, setThumbnailId] = useState<string | null>(null)
@@ -154,12 +164,26 @@ export function PublishPackDialog({
     return out
   }, [selectedFragments, mediaById])
 
+  // Chapter markers, story mode only. Each marker becomes a chapter entry on the
+  // pack page, in fragment order.
+  const { data: markerFragments } = useQuery({
+    queryKey: ['fragments', storyId, 'marker'],
+    queryFn: () => api.fragments.list(storyId!, 'marker'),
+    enabled: open && isStory && !!storyId,
+  })
+  const chapters = useMemo(
+    () => (markerFragments ?? []).map((m, index) => ({ title: m.name, order: index })),
+    [markerFragments],
+  )
+
   // Reset transient state whenever the dialog opens. A defaultSlug (sync)
   // pre-fills the pack to re-publish to.
   useEffect(() => {
     if (open) {
       setError(null)
       setPublishedId(null)
+      setReadme('')
+      setContentRating('general')
       if (defaultSlug) setSlug(defaultSlug)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -194,6 +218,7 @@ export function PublishPackDialog({
       if (description.length > 250) throw new Error('Description must be 250 characters or fewer.')
 
       const thumbnailFragment = thumbnailId ? mediaById.get(thumbnailId) : undefined
+      const trimmedReadme = readme.trim()
 
       // Fields shared by both content kinds. The server fills in contentKind,
       // fragment counts, and the payload hash; MVP packs carry no blockConfig /
@@ -207,7 +232,10 @@ export function PublishPackDialog({
         license,
         errataFormatVersion: 1,
         tags,
-        nsfw,
+        // R18 implies NSFW; general / mature are not flagged (mature is a soft label).
+        nsfw: contentRating === 'r18',
+        contentRating,
+        ...(trimmedReadme ? { readme: trimmedReadme } : {}),
         ...(thumbnailFragment ? { thumbnail: thumbnailFragment.content } : {}),
         capabilities: [] as string[],
         dependencies: [] as ErratapackManifest['dependencies'],
@@ -221,6 +249,7 @@ export function PublishPackDialog({
         const manifest: ErratapackManifest = {
           ...base,
           contentKind: 'story',
+          ...(chapters.length > 0 ? { chapters } : {}),
           fragmentTypes: [],
           fragmentCount: 0,
           payloadHash: '',
@@ -351,6 +380,27 @@ export function PublishPackDialog({
               />
             </div>
 
+            {/* Information (readme) */}
+            <div>
+              <div className="flex items-baseline justify-between">
+                <h4 className={sectionLabel}>Information</h4>
+                <span className="text-[0.625rem] tabular-nums text-muted-foreground">
+                  {readme.length}/{README_MAX}
+                </span>
+              </div>
+              <Textarea
+                value={readme}
+                onChange={(e) => setReadme(e.target.value.slice(0, README_MAX))}
+                placeholder="Long-form notes, setup, credits... Markdown is supported."
+                rows={4}
+                className="text-xs resize-y min-h-20 max-h-56"
+                data-component-id="publish-pack-readme"
+              />
+              <p className="mt-1.5 text-[0.625rem] text-muted-foreground">
+                Shown on the pack page. Optional.
+              </p>
+            </div>
+
             {/* License */}
             <div>
               <h4 className={sectionLabel}>License</h4>
@@ -402,6 +452,24 @@ export function PublishPackDialog({
               />
             </div>
 
+            {/* Chapters (story mode, derived from markers) */}
+            {isStory && chapters.length > 0 && (
+              <div>
+                <h4 className={sectionLabel}>Chapters ({chapters.length})</h4>
+                <ol className="max-h-28 overflow-y-auto rounded-md border border-border/40 bg-muted/15 px-3 py-2 text-xs text-muted-foreground">
+                  {chapters.map((ch, i) => (
+                    <li key={i} className="flex gap-2 py-0.5">
+                      <span className="tabular-nums text-muted-foreground/60">{i + 1}.</span>
+                      <span className="truncate text-foreground/80">{ch.title}</span>
+                    </li>
+                  ))}
+                </ol>
+                <p className="mt-1.5 text-[0.625rem] text-muted-foreground">
+                  Derived from chapter markers. Shown on the pack page.
+                </p>
+              </div>
+            )}
+
             {/* Thumbnail */}
             {thumbnailCandidates.length > 0 && (
               <div>
@@ -436,18 +504,28 @@ export function PublishPackDialog({
               </div>
             )}
 
-            {/* NSFW */}
-            <div
-              onClick={() => setNsfw((v) => !v)}
-              className="flex items-center gap-2.5 cursor-pointer group"
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setNsfw((v) => !v) } }}
-            >
-              <Checkbox checked={nsfw} className="size-3.5" tabIndex={-1} />
-              <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">
-                Mark as NSFW
-              </span>
+            {/* Content rating */}
+            <div>
+              <h4 className={sectionLabel}>Content rating</h4>
+              <div className="flex w-fit gap-[3px] rounded-lg bg-muted/25 p-[3px]">
+                {CONTENT_RATINGS.map((r) => (
+                  <button
+                    key={r.value}
+                    type="button"
+                    onClick={() => setContentRating(r.value)}
+                    className={cn(
+                      'rounded-md px-3 py-[6px] text-[0.6875rem] font-medium transition-all duration-150',
+                      contentRating === r.value ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+                    )}
+                    data-component-id={`publish-pack-rating-${r.value}`}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1.5 text-[0.625rem] text-muted-foreground">
+                {CONTENT_RATINGS.find((r) => r.value === contentRating)?.hint}
+              </p>
             </div>
 
             {/* Visibility */}

@@ -30,6 +30,11 @@ const manifestBody = t.Object({
   license: t.String(),
   tags: t.Optional(t.Array(t.String())),
   nsfw: t.Optional(t.Boolean()),
+  readme: t.Optional(t.String()),
+  contentRating: t.Optional(t.String()),
+  chapters: t.Optional(
+    t.Array(t.Object({ title: t.String(), order: t.Optional(t.Number()) })),
+  ),
   thumbnail: t.Optional(t.String()),
   publisher: t.Optional(t.String()),
 })
@@ -46,6 +51,8 @@ function redactConfig(config: ErratanetConfig) {
     hubUrl: config.hubUrl,
     token: config.token ? '••••' : '',
     handle: config.handle,
+    enabled: config.enabled,
+    introSeen: config.introSeen,
   }
 }
 
@@ -67,12 +74,16 @@ export function erratanetRoutes(dataDir: string) {
         // Signing out clears the cached handle.
         if (!body.token) patch.handle = undefined
       }
+      if (body.enabled !== undefined) patch.enabled = body.enabled
+      if (body.introSeen !== undefined) patch.introSeen = body.introSeen
       const next = await updateErratanetConfig(dataDir, patch)
       return redactConfig(next)
     }, {
       body: t.Object({
         hubUrl: t.Optional(t.String()),
         token: t.Optional(t.String()),
+        enabled: t.Optional(t.Boolean()),
+        introSeen: t.Optional(t.Boolean()),
       }),
     })
 
@@ -177,6 +188,9 @@ export function erratanetRoutes(dataDir: string) {
         license: body.manifest.license,
         ...(body.manifest.tags ? { tags: body.manifest.tags } : {}),
         ...(body.manifest.nsfw !== undefined ? { nsfw: body.manifest.nsfw } : {}),
+        ...(body.manifest.readme ? { readme: body.manifest.readme } : {}),
+        ...(body.manifest.contentRating ? { contentRating: body.manifest.contentRating } : {}),
+        ...(body.manifest.chapters ? { chapters: body.manifest.chapters } : {}),
         ...(body.manifest.thumbnail ? { thumbnail: body.manifest.thumbnail } : {}),
         ...(body.manifest.publisher ? { publisher: body.manifest.publisher } : {}),
       }

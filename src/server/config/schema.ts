@@ -87,8 +87,12 @@ export const ErratanetConfigSchema = z
     token: z.string().default(''),
     /** Resolved account handle once authenticated. */
     handle: z.string().optional(),
+    /** ErrataNet is hidden in the UI until the user enables it. */
+    enabled: z.boolean().default(false),
+    /** Whether the first-run intro prompt has been shown. */
+    introSeen: z.boolean().default(false),
   })
-  .default({ hubUrl: '', token: '' })
+  .default({ hubUrl: '', token: '', enabled: false, introSeen: false })
 
 export type ErratanetConfig = z.infer<typeof ErratanetConfigSchema>
 

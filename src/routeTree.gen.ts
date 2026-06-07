@@ -9,11 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
 import { Route as OpenrouterOauthCallbackRouteImport } from './routes/openrouter-oauth-callback'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as StoryStoryIdRouteImport } from './routes/story.$storyId'
 import { Route as ApiSplatRouteImport } from './routes/api.$'
 
+const OpenrouterOauthCallbackRoute = OpenrouterOauthCallbackRouteImport.update({
+  id: '/openrouter-oauth-callback',
+  path: '/openrouter-oauth-callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -24,11 +29,6 @@ const StoryStoryIdRoute = StoryStoryIdRouteImport.update({
   path: '/story/$storyId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const OpenrouterOauthCallbackRoute = OpenrouterOauthCallbackRouteImport.update({
-  id: '/openrouter-oauth-callback',
-  path: '/openrouter-oauth-callback',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiSplatRoute = ApiSplatRouteImport.update({
   id: '/api/$',
   path: '/api/$',
@@ -37,40 +37,52 @@ const ApiSplatRoute = ApiSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/api/$': typeof ApiSplatRoute
   '/openrouter-oauth-callback': typeof OpenrouterOauthCallbackRoute
+  '/api/$': typeof ApiSplatRoute
   '/story/$storyId': typeof StoryStoryIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/api/$': typeof ApiSplatRoute
   '/openrouter-oauth-callback': typeof OpenrouterOauthCallbackRoute
+  '/api/$': typeof ApiSplatRoute
   '/story/$storyId': typeof StoryStoryIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/api/$': typeof ApiSplatRoute
   '/openrouter-oauth-callback': typeof OpenrouterOauthCallbackRoute
+  '/api/$': typeof ApiSplatRoute
   '/story/$storyId': typeof StoryStoryIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/$' | '/openrouter-oauth-callback' | '/story/$storyId'
+  fullPaths: '/' | '/openrouter-oauth-callback' | '/api/$' | '/story/$storyId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/$' | '/openrouter-oauth-callback' | '/story/$storyId'
-  id: '__root__' | '/' | '/api/$' | '/openrouter-oauth-callback' | '/story/$storyId'
+  to: '/' | '/openrouter-oauth-callback' | '/api/$' | '/story/$storyId'
+  id:
+    | '__root__'
+    | '/'
+    | '/openrouter-oauth-callback'
+    | '/api/$'
+    | '/story/$storyId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ApiSplatRoute: typeof ApiSplatRoute
   OpenrouterOauthCallbackRoute: typeof OpenrouterOauthCallbackRoute
+  ApiSplatRoute: typeof ApiSplatRoute
   StoryStoryIdRoute: typeof StoryStoryIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/openrouter-oauth-callback': {
+      id: '/openrouter-oauth-callback'
+      path: '/openrouter-oauth-callback'
+      fullPath: '/openrouter-oauth-callback'
+      preLoaderRoute: typeof OpenrouterOauthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -92,20 +104,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/openrouter-oauth-callback': {
-      id: '/openrouter-oauth-callback'
-      path: '/openrouter-oauth-callback'
-      fullPath: '/openrouter-oauth-callback'
-      preLoaderRoute: typeof OpenrouterOauthCallbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ApiSplatRoute: ApiSplatRoute,
   OpenrouterOauthCallbackRoute: OpenrouterOauthCallbackRoute,
+  ApiSplatRoute: ApiSplatRoute,
   StoryStoryIdRoute: StoryStoryIdRoute,
 }
 export const routeTree = rootRouteImport

@@ -12,7 +12,7 @@ import type {
 
 export const erratanet = {
   getConfig: () => apiFetch<ErratanetConfigResponse>('/erratanet/config'),
-  setConfig: (data: { hubUrl?: string; token?: string }) =>
+  setConfig: (data: { hubUrl?: string; token?: string; enabled?: boolean; introSeen?: boolean }) =>
     apiFetch<ErratanetConfigResponse>('/erratanet/config', {
       method: 'POST',
       body: JSON.stringify(data),

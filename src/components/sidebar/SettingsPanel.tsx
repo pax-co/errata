@@ -295,6 +295,44 @@ function GuidedPromptsControls({ story, onUpdate, isPending }: {
   )
 }
 
+function ErrataNetToggle() {
+  const queryClient = useQueryClient()
+  const { data: config } = useQuery({
+    queryKey: ['erratanet-config'],
+    queryFn: () => api.erratanet.getConfig(),
+  })
+  const setEnabled = useMutation({
+    mutationFn: (enabled: boolean) =>
+      api.erratanet.setConfig(enabled ? { enabled: true, introSeen: true } : { enabled: false }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['erratanet-config'] })
+    },
+  })
+
+  const enabled = config?.enabled ?? false
+
+  return (
+    <div>
+      <div className="rounded-lg border border-border/30 p-3">
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-[0.75rem] font-medium text-foreground/80">ErrataNet</p>
+            <p className="text-[0.625rem] leading-snug text-muted-foreground">
+              Browse, install, and publish community packs from a hub.
+            </p>
+          </div>
+          <Toggle
+            checked={enabled}
+            disabled={setEnabled.isPending}
+            onChange={(next) => setEnabled.mutate(next)}
+            label="Toggle ErrataNet"
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function SettingsPanel({
   storyId,
   story,
@@ -761,7 +799,10 @@ export function SettingsPanel({
       </SettingsSection>
 
       {/* Remote access (auth + LAN + tunnel) */}
-      <SettingsSection id="set-remote" label="Remote" group="System"><SharingPanel /></SettingsSection>
+      <SettingsSection id="set-remote" label="Remote" group="System">
+        <SharingPanel />
+        <ErrataNetToggle />
+      </SettingsSection>
 
       {/* Plugins */}
       <SettingsSection id="set-plugins" label="Plugins" group="System">
@@ -840,13 +881,14 @@ export function SettingsPanel({
         )}
       </SettingsSection>
 
-      {/* About: version, links (docs, Discord, GitHub, releases), attribution */}
-      <div className="pt-4 mt-2 border-t border-border/20">
-        <AboutSection />
-      </div>
-
-      {/* Desktop app updates (Electron only; renders nothing in the browser) */}
-      <DesktopUpdatesControls />
+      {/* About: version, links (docs, Discord, GitHub, releases), attribution + desktop updates */}
+      <SettingsSection id="set-about" label="About" group="System">
+        <div className="space-y-4">
+          <AboutSection />
+          {/* Desktop app updates (Electron only; renders nothing in the browser) */}
+          <DesktopUpdatesControls />
+        </div>
+      </SettingsSection>
     </div>
   )
 }

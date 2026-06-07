@@ -499,6 +499,10 @@ export interface ErratanetConfigResponse {
   /** Redacted to a fixed mask when present, empty string when signed out. */
   token: string
   handle?: string
+  /** ErrataNet is hidden in the UI until enabled. */
+  enabled: boolean
+  /** Whether the first-run intro prompt has been shown. */
+  introSeen: boolean
 }
 
 /** Resolved account for the configured hub token. */

@@ -54,6 +54,19 @@ export const ErratapackManifestSchema = z.object({
   fragmentCount: z.int(),
   tags: z.array(z.string()),
   nsfw: z.boolean().default(false),
+  /**
+   * Content rating shown on the pack page. `r18` implies `nsfw`; the boolean
+   * `nsfw` above is kept for back-compat. NOTE: the hub's own copy at
+   * `app/lib/erratapack/index.ts` must stay in sync (synced by a later task).
+   */
+  contentRating: z.enum(['general', 'mature', 'r18']).optional(),
+  /** Long-form markdown "information" rendered on the pack page. */
+  readme: z.string().max(8000).optional(),
+  /** Chapter listing for story packs, shown on the pack page. */
+  chapters: z
+    .array(z.object({ title: z.string().max(200), order: z.int().optional() }))
+    .max(2000)
+    .optional(),
   /** Asset uri or external url for a cover/preview image. Optional. */
   thumbnail: z.string().optional(),
   /** Reserved for forward compat. MVP install refuses any non-empty value. */

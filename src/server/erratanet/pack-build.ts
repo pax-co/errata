@@ -35,6 +35,9 @@ export interface PackManifestInput {
   license: string
   tags?: string[]
   nsfw?: boolean
+  readme?: string
+  contentRating?: string
+  chapters?: { title: string; order?: number }[]
   thumbnail?: string
   dependencies?: ErratapackManifest['dependencies']
   engines?: ErratapackManifest['engines']
@@ -371,6 +374,11 @@ function buildManifest(args: {
     fragmentCount: args.fragmentCount,
     tags: input.tags ?? [],
     nsfw: input.nsfw ?? false,
+    ...(input.readme ? { readme: input.readme } : {}),
+    ...(input.contentRating
+      ? { contentRating: input.contentRating as ErratapackManifest['contentRating'] }
+      : {}),
+    ...(input.chapters ? { chapters: input.chapters } : {}),
     ...(input.thumbnail ? { thumbnail: input.thumbnail } : {}),
     capabilities: [],
     dependencies: input.dependencies ?? [],

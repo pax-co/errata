@@ -51,6 +51,7 @@ import { CharacterChatView } from '@/components/character-chat/CharacterChatView
 import { AgentActivityIndicator } from '@/components/AgentActivityIndicator'
 import { useTimelineBar } from '@/lib/theme'
 import { initClientPluginPanels } from '@/lib/plugin-panel-init'
+import { ErratanetIntroPrompt } from '@/components/erratanet/ErratanetIntroPrompt'
 
 export const Route = createFileRoute('/story/$storyId')({
   component: StoryEditorPage,
@@ -809,6 +810,8 @@ function StoryEditorPage() {
         initialCardData={cardImportData}
         imageDataUrl={cardImportImageUrl}
       />
+
+      <ErratanetIntroPrompt />
 
       <Dialog open={!!pendingAgentConfigImport} onOpenChange={(open) => { if (!open) setPendingAgentConfigImport(null) }}>
         <DialogContent>

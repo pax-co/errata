@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { api, type StoryMeta } from '@/lib/api'
 import {
@@ -109,6 +109,11 @@ export function StorySidebar({
   const { openHelp } = useHelp()
   const queryClient = useQueryClient()
   const [isDragOverArchive, setIsDragOverArchive] = useState(false)
+
+  const { data: enetConfig } = useQuery({
+    queryKey: ['erratanet-config'],
+    queryFn: () => api.erratanet.getConfig(),
+  })
 
   const archiveMutation = useMutation({
     mutationFn: (fragmentId: string) => api.fragments.archive(storyId, fragmentId),
@@ -369,18 +374,20 @@ export function StorySidebar({
               <span>Help</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              isActive={activeSection === 'erratanet'}
-              onClick={() => handleToggle('erratanet')}
-              tooltip="ErrataNet"
-              data-component-id="sidebar-section-erratanet"
-            >
-              <Library className="size-4" />
-              <span>ErrataNet</span>
-              <ChevronRight className="ml-auto size-3.5 text-muted-foreground" />
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          {enetConfig?.enabled && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                isActive={activeSection === 'erratanet'}
+                onClick={() => handleToggle('erratanet')}
+                tooltip="ErrataNet"
+                data-component-id="sidebar-section-erratanet"
+              >
+                <Library className="size-4" />
+                <span>ErrataNet</span>
+                <ChevronRight className="ml-auto size-3.5 text-muted-foreground" />
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <SidebarMenuButton
               isActive={activeSection === 'settings'}
