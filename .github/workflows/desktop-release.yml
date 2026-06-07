@@ -40,6 +40,10 @@ jobs:
         env:
           # Used by electron-builder to upload assets to the triggering GitHub Release.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Skip macOS code signing unless a certificate is configured. Without this, the
+          # mac runner attempts ad-hoc signing with no cert and fails ("not a file"). When
+          # CSC_LINK is set, signing + notarization run via the secrets below.
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK != '' }}
           # macOS code signing + notarization (only consumed on the macOS runner).
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
