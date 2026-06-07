@@ -231,8 +231,16 @@ function LLMSection({ story, globalConfig, updateMutation, onManageProviders }: 
                     providerId={effectiveProviderId}
                     value={directModelId}
                     onChange={(mid) => {
+                      const current = overrides[role.key] ?? {}
                       updateMutation.mutate({
-                        modelOverrides: { ...overrides, [role.key]: { ...overrides[role.key], modelId: mid } },
+                        modelOverrides: {
+                          ...overrides,
+                          [role.key]: {
+                            ...current,
+                            providerId: mid ? (current.providerId ?? effectiveProviderId) : current.providerId,
+                            modelId: mid,
+                          },
+                        },
                       })
                     }}
                     disabled={updateMutation.isPending}
@@ -249,8 +257,9 @@ function LLMSection({ story, globalConfig, updateMutation, onManageProviders }: 
                     onChange={(e) => {
                       const val = e.target.value
                       const temp = val === '' ? null : parseFloat(val)
+                      const current = overrides[role.key] ?? {}
                       updateMutation.mutate({
-                        modelOverrides: { ...overrides, [role.key]: { ...overrides[role.key], temperature: temp } },
+                        modelOverrides: { ...overrides, [role.key]: { ...current, temperature: temp } },
                       })
                     }}
                     disabled={updateMutation.isPending}
