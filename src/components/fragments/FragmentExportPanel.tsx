@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api, type Fragment } from '@/lib/api'
 import { resolveFragmentVisual, generateBubbles, hexagonPoints, diamondPoints, type Bubble } from '@/lib/fragment-visuals'
 import { serializeFragment, serializeBundle, downloadExportFile } from '@/lib/fragment-clipboard'
+import { PublishPackDialog } from '@/components/erratanet/PublishPackDialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
@@ -26,6 +27,7 @@ import {
   Database,
   Package,
   Settings2,
+  UploadCloud,
 } from 'lucide-react'
 
 interface FragmentExportPanelProps {
@@ -62,6 +64,7 @@ export function FragmentExportPanel({ storyId, storyName, onClose }: FragmentExp
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [copied, setCopied] = useState(false)
   const [includeConfigs, setIncludeConfigs] = useState(false)
+  const [publishOpen, setPublishOpen] = useState(false)
 
   const { data: allFragments } = useQuery({
     queryKey: ['fragments', storyId],
@@ -361,7 +364,7 @@ export function FragmentExportPanel({ storyId, storyName, onClose }: FragmentExp
         )}
       </div>
 
-      <PanelFooter className="px-6 py-4 gap-2">
+      <PanelFooter className="px-6 py-4 gap-2 flex-wrap">
         <Button
           size="sm"
           className="gap-1.5"
@@ -381,10 +384,28 @@ export function FragmentExportPanel({ storyId, storyName, onClose }: FragmentExp
           {copied ? <Check className="size-3.5 text-primary" /> : <Clipboard className="size-3.5" />}
           {copied ? 'Copied' : 'Copy'}
         </Button>
-        <Button size="sm" variant="ghost" onClick={onClose}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1.5"
+          disabled={selected.size === 0}
+          onClick={() => setPublishOpen(true)}
+        >
+          <UploadCloud className="size-3.5" />
+          Publish to erratanet
+        </Button>
+        <Button size="sm" variant="ghost" className="ml-auto" onClick={onClose}>
           Cancel
         </Button>
       </PanelFooter>
+
+      <PublishPackDialog
+        open={publishOpen}
+        onOpenChange={setPublishOpen}
+        selectedFragments={selectedFragments}
+        mediaById={mediaById}
+        storyName={storyName}
+      />
     </Panel>
   )
 }

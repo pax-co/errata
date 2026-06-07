@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
-import { GlobalConfigSchema, type GlobalConfig, type ProviderConfig, type SharingConfig } from './schema'
+import { GlobalConfigSchema, type GlobalConfig, type ProviderConfig, type SharingConfig, type ErratanetConfig } from './schema'
 import { writeJsonAtomic } from '../fs-utils'
 
 function configPath(dataDir: string): string {
@@ -25,6 +25,17 @@ export async function updateSharingConfig(dataDir: string, patch: Partial<Sharin
   config.sharing = { ...config.sharing, ...patch }
   await saveGlobalConfig(dataDir, config)
   return config.sharing
+}
+
+export async function getErratanetConfig(dataDir: string): Promise<ErratanetConfig> {
+  return (await getGlobalConfig(dataDir)).erratanet
+}
+
+export async function updateErratanetConfig(dataDir: string, patch: Partial<ErratanetConfig>): Promise<ErratanetConfig> {
+  const config = await getGlobalConfig(dataDir)
+  config.erratanet = { ...config.erratanet, ...patch }
+  await saveGlobalConfig(dataDir, config)
+  return config.erratanet
 }
 
 export async function saveGlobalConfig(dataDir: string, config: GlobalConfig): Promise<void> {
@@ -98,5 +109,7 @@ export async function getGlobalConfigSafe(dataDir: string): Promise<GlobalConfig
     })),
     // Never expose the password hash to clients.
     sharing: { ...config.sharing, passwordHash: config.sharing.passwordHash ? '••••' : '' },
+    // Never expose the hub token to clients.
+    erratanet: { ...config.erratanet, token: config.erratanet.token ? '••••' : '' },
   }
 }

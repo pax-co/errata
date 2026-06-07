@@ -19,6 +19,7 @@ import { agentBlockRoutes } from './routes/agent-blocks'
 import { tokenUsageRoutes } from './routes/token-usage'
 import { folderRoutes } from './routes/folders'
 import { sharingRoutes } from './routes/sharing'
+import { erratanetRoutes } from './routes/erratanet'
 
 const DATA_DIR = process.env.DATA_DIR ?? './data'
 
@@ -133,6 +134,7 @@ export function createApp(dataDir: string = DATA_DIR) {
     .use(tokenUsageRoutes(dataDir))
     .use(folderRoutes(dataDir))
     .use(sharingRoutes(dataDir))
+    .use(erratanetRoutes(dataDir))
 
   // Load instruction overrides after agents are registered (route imports trigger agent registration)
   instructionRegistry.loadOverridesSync(dataDir)

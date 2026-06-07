@@ -142,6 +142,14 @@ export const StoryMetaSchema = z.object({
       guidedSceneSettingPrompt: z.string().optional(),
       guidedSuggestPrompt: z.string().optional(),
       disableThinking: z.boolean().default(false),
+      // Provenance for stories installed from an erratanet pack. Absent for
+      // locally created stories.
+      erratanet: z
+        .object({
+          pack: z.string(),
+          version: z.string(),
+        })
+        .optional(),
     })
     .default({ outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, modelOverrides: {}, generationMode: 'standard', clarifyBeforeGenerate: false, prewriterReasoning: 'normal', disableLibrarianAutoAnalysis: false, autoApplyLibrarianSuggestions: false, disableLibrarianDirections: false, disableLibrarianSuggestions: false, contextOrderMode: 'simple', fragmentOrder: [], enabledBuiltinTools: [], contextCompact: { type: 'proseLimit', value: 10 }, summaryCompact: { maxCharacters: 12000, targetCharacters: 9000 }, enableHierarchicalSummary: false, disableThinking: false }),
 })

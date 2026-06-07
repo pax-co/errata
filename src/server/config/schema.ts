@@ -75,10 +75,28 @@ export const SharingConfigSchema = z
 
 export type SharingConfig = z.infer<typeof SharingConfigSchema>
 
+/**
+ * Erratanet hub connection: the pack-sharing hub URL, an auth token, and the
+ * resolved account handle. Empty strings mean "not connected".
+ */
+export const ErratanetConfigSchema = z
+  .object({
+    /** Base URL of the erratanet hub. Empty = not configured. */
+    hubUrl: z.string().default(''),
+    /** Auth token for the hub. Empty = signed out. Redacted in safe config. */
+    token: z.string().default(''),
+    /** Resolved account handle once authenticated. */
+    handle: z.string().optional(),
+  })
+  .default({ hubUrl: '', token: '' })
+
+export type ErratanetConfig = z.infer<typeof ErratanetConfigSchema>
+
 export const GlobalConfigSchema = z.object({
   providers: z.array(ProviderConfigSchema).default([]),
   defaultProviderId: z.string().nullable().default(null),
   sharing: SharingConfigSchema,
+  erratanet: ErratanetConfigSchema,
 })
 
 export type GlobalConfig = z.infer<typeof GlobalConfigSchema>

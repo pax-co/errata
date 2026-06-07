@@ -484,3 +484,77 @@ export interface SharingStatusResponse {
   lanQr: string | null
   tunnelQr: string | null
 }
+
+// Erratanet (pack hub) — config, account, search, packs
+
+/** Safe view of the erratanet config (token is redacted server-side). */
+export interface ErratanetConfigResponse {
+  hubUrl: string
+  /** Redacted to a fixed mask when present, empty string when signed out. */
+  token: string
+  handle?: string
+}
+
+/** Resolved account for the configured hub token. */
+export interface ErratanetAccount {
+  connected: boolean
+  handle?: string
+  displayName?: string
+  hubUrl?: string
+  /** Set when the hub was unreachable or the token was rejected. */
+  error?: string
+}
+
+/** A pack as it appears in search results / listings. */
+export interface ErratanetPackSummary {
+  id: string
+  version: string
+  title: string
+  description: string
+  contentKind: 'fragment-pack' | 'story'
+  fragmentTypes: string[]
+  fragmentCount: number
+  tags: string[]
+  nsfw: boolean
+  thumbnail?: string
+  publisher?: string
+  createdAt: string
+}
+
+export interface ErratanetSearchResponse {
+  results: ErratanetPackSummary[]
+}
+
+/** Full pack record returned when fetching a single pack by id. */
+export interface ErratanetPackDetail extends ErratanetPackSummary {
+  license: string
+  errataFormatVersion: number
+  payloadHash: string
+  /** Versions available for this pack, newest first. */
+  versions?: string[]
+}
+
+export interface ErratanetPublishResponse {
+  id: string
+  version: string
+}
+
+export interface ErratanetInstallResponse {
+  /** Story the pack was installed into (existing or newly created). */
+  storyId: string
+  /** Number of fragments created by the install. */
+  fragmentCount: number
+  /** True when install created a new story. */
+  createdStory: boolean
+}
+
+/** A pack already installed in a story that has a newer version on the hub. */
+export interface ErratanetUpdateInfo {
+  id: string
+  installedVersion: string
+  latestVersion: string
+}
+
+export interface ErratanetUpdatesResponse {
+  updates: ErratanetUpdateInfo[]
+}

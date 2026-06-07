@@ -1,0 +1,471 @@
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { api, type Fragment } from '@/lib/api'
+import type { ErratapackManifest } from '@/lib/erratanet/pack-schema'
+import { GLOBAL_PACK_ID_REGEX } from '@/lib/erratanet/pack-schema'
+import { serializeBundle } from '@/lib/fragment-clipboard'
+import { parseVisualRefs } from '@/lib/fragment-visuals'
+import { cn } from '@/lib/utils'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  UploadCloud,
+  Loader2,
+  Check,
+  AlertTriangle,
+  X,
+  Image as ImageIcon,
+} from 'lucide-react'
+
+interface PublishPackDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  /** The guideline / character / knowledge fragments to publish. */
+  selectedFragments: Fragment[]
+  /** Image + icon fragments by id, for resolving attachments and thumbnails. */
+  mediaById: Map<string, Fragment>
+  storyName?: string
+}
+
+const LICENSES = [
+  { value: 'CC0-1.0', label: 'CC0 1.0 (public domain)' },
+  { value: 'CC-BY-4.0', label: 'CC BY 4.0 (attribution)' },
+  { value: 'CC-BY-SA-4.0', label: 'CC BY-SA 4.0 (share-alike)' },
+  { value: 'CC-BY-NC-4.0', label: 'CC BY-NC 4.0 (non-commercial)' },
+  { value: 'proprietary', label: 'Proprietary (all rights reserved)' },
+] as const
+
+type BumpKind = 'patch' | 'minor' | 'major'
+
+const sectionLabel =
+  'text-[0.5625rem] text-muted-foreground uppercase tracking-[0.15em] font-medium mb-2'
+
+/** Increment a semver core (major.minor.patch). Falls back to 1.0.0 on garbage. */
+function bumpVersion(latest: string | null | undefined, kind: BumpKind): string {
+  if (!latest) return '1.0.0'
+  const core = latest.split(/[-+]/)[0]
+  const parts = core.split('.').map((n) => Number.parseInt(n, 10))
+  let [major, minor, patch] = [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0]
+  if (kind === 'major') {
+    major += 1
+    minor = 0
+    patch = 0
+  } else if (kind === 'minor') {
+    minor += 1
+    patch = 0
+  } else {
+    patch += 1
+  }
+  return `${major}.${minor}.${patch}`
+}
+
+/** Browser SHA-256 over a UTF-8 string, formatted as `sha256:<hex>`. */
+async function sha256Hex(text: string): Promise<string> {
+  const bytes = new TextEncoder().encode(text)
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  const hex = Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+  return `sha256:${hex}`
+}
+
+export function PublishPackDialog({
+  open,
+  onOpenChange,
+  selectedFragments,
+  mediaById,
+  storyName,
+}: PublishPackDialogProps) {
+  const [slug, setSlug] = useState('')
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [license, setLicense] = useState<string>(LICENSES[1].value)
+  const [tags, setTags] = useState<string[]>([])
+  const [tagDraft, setTagDraft] = useState('')
+  const [nsfw, setNsfw] = useState(false)
+  const [bump, setBump] = useState<BumpKind>('patch')
+  const [thumbnailId, setThumbnailId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [publishedId, setPublishedId] = useState<string | null>(null)
+
+  // Resolve the signed-in handle. New packs need it to form the @handle/slug id.
+  const { data: account } = useQuery({
+    queryKey: ['erratanet-account'],
+    queryFn: () => api.erratanet.getAccount(),
+    enabled: open,
+  })
+  const handle = account?.handle ?? null
+  const packId = handle && slug.trim() ? `@${handle}/${slug.trim()}` : null
+
+  // Look up the latest published version of this pack (404 -> brand new pack).
+  const { data: existingPack, isFetching: checkingPack } = useQuery({
+    queryKey: ['erratanet-pack', packId],
+    queryFn: async () => {
+      if (!packId) return null
+      try {
+        return await api.erratanet.getPack(packId)
+      } catch {
+        // Not found / unreachable: treat as a new pack.
+        return null
+      }
+    },
+    enabled: open && !!packId,
+  })
+  const latestVersion = existingPack?.version ?? null
+  const nextVersion = useMemo(() => bumpVersion(latestVersion, bump), [latestVersion, bump])
+
+  // Image fragments referenced by the selected fragments — thumbnail candidates.
+  const thumbnailCandidates = useMemo(() => {
+    const seen = new Set<string>()
+    const out: Fragment[] = []
+    for (const fragment of selectedFragments) {
+      for (const ref of parseVisualRefs(fragment.meta)) {
+        if (ref.kind !== 'image' || seen.has(ref.fragmentId)) continue
+        const media = mediaById.get(ref.fragmentId)
+        if (media) {
+          seen.add(ref.fragmentId)
+          out.push(media)
+        }
+      }
+    }
+    return out
+  }, [selectedFragments, mediaById])
+
+  // Reset transient state whenever the dialog opens.
+  useEffect(() => {
+    if (open) {
+      setError(null)
+      setPublishedId(null)
+    }
+  }, [open])
+
+  // Default the title from the story name once, when empty.
+  useEffect(() => {
+    if (open && !title && storyName) setTitle(storyName)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  const addTag = useCallback(() => {
+    const tag = tagDraft.trim().toLowerCase()
+    if (tag && !tags.includes(tag)) setTags((prev) => [...prev, tag])
+    setTagDraft('')
+  }, [tagDraft, tags])
+
+  const removeTag = useCallback((tag: string) => {
+    setTags((prev) => prev.filter((t) => t !== tag))
+  }, [])
+
+  const publishMut = useMutation({
+    mutationFn: async () => {
+      if (!handle) throw new Error('Connect a hub account in Settings first.')
+      const cleanSlug = slug.trim()
+      if (!cleanSlug) throw new Error('Enter a slug for the pack.')
+      const id = `@${handle}/${cleanSlug}`
+      if (!GLOBAL_PACK_ID_REGEX.test(id)) {
+        throw new Error('Slug must be lowercase letters, numbers, and dashes.')
+      }
+      if (!title.trim()) throw new Error('Enter a title.')
+      if (description.length > 250) throw new Error('Description must be 250 characters or fewer.')
+      if (selectedFragments.length === 0) throw new Error('Select at least one fragment to publish.')
+
+      // Bundle the fragments client-side. MVP packs carry fragments + assets
+      // only, so no blockConfig / agentBlockConfigs are attached.
+      const bundleJson = serializeBundle(selectedFragments, mediaById, storyName)
+
+      const fragmentTypes = Array.from(new Set(selectedFragments.map((f) => f.type)))
+      const thumbnailFragment = thumbnailId ? mediaById.get(thumbnailId) : undefined
+
+      const manifest: ErratapackManifest = {
+        errataPack: 1,
+        id,
+        version: nextVersion,
+        title: title.trim(),
+        description: description.trim(),
+        license,
+        contentKind: 'fragment-pack',
+        errataFormatVersion: 1,
+        fragmentTypes,
+        fragmentCount: selectedFragments.length,
+        tags,
+        nsfw,
+        ...(thumbnailFragment ? { thumbnail: thumbnailFragment.content } : {}),
+        capabilities: [],
+        dependencies: [],
+        payloadHash: await sha256Hex(bundleJson),
+        ...(handle ? { publisher: `@${handle}` } : {}),
+        createdAt: new Date().toISOString(),
+      }
+
+      return api.erratanet.publish({ bundleJson, manifest })
+    },
+    onSuccess: (res) => {
+      setPublishedId(res.id)
+      setError(null)
+    },
+    onError: (e: unknown) => {
+      setError(e instanceof Error ? e.message : 'Publish failed.')
+    },
+  })
+
+  const descOver = description.length > 250
+  const canPublish =
+    !!handle &&
+    !!slug.trim() &&
+    !!title.trim() &&
+    !descOver &&
+    selectedFragments.length > 0 &&
+    !publishMut.isPending
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[520px] max-h-[88vh] flex flex-col overflow-hidden" data-component-id="publish-pack-dialog">
+        <DialogHeader>
+          <DialogTitle className="font-display text-lg flex items-center gap-2">
+            <UploadCloud className="size-4 text-muted-foreground" />
+            Publish to erratanet
+          </DialogTitle>
+          <DialogDescription>
+            Share {selectedFragments.length} fragment{selectedFragments.length !== 1 ? 's' : ''} as a reusable pack.
+          </DialogDescription>
+        </DialogHeader>
+
+        {publishedId ? (
+          <div className="flex flex-col items-center gap-3 py-10 text-center">
+            <div className="grid size-11 place-items-center rounded-full bg-primary/10">
+              <Check className="size-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">Published</p>
+              <p className="mt-1 font-mono text-[0.8125rem] text-muted-foreground">{publishedId}</p>
+              <p className="mt-1 text-[0.6875rem] text-muted-foreground">version {nextVersion}</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto space-y-5 py-1 pr-1">
+            {/* Account notice */}
+            {!handle && (
+              <div className="flex items-start gap-2 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-500/80" />
+                <p className="text-[0.6875rem] leading-snug text-amber-600/80 dark:text-amber-400/80">
+                  No hub account connected. Sign in under Settings, Remote before publishing.
+                </p>
+              </div>
+            )}
+
+            {/* Slug */}
+            <div>
+              <h4 className={sectionLabel}>Slug</h4>
+              <div className="flex items-center gap-2">
+                <span className="shrink-0 font-mono text-[0.8125rem] text-muted-foreground">
+                  @{handle ?? 'handle'}/
+                </span>
+                <Input
+                  value={slug}
+                  onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  placeholder="cozy-fantasy-starter"
+                  className="h-9 font-mono"
+                  autoFocus
+                  data-component-id="publish-pack-slug"
+                />
+              </div>
+            </div>
+
+            {/* Title */}
+            <div>
+              <h4 className={sectionLabel}>Title</h4>
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Cozy Fantasy Starter"
+                maxLength={120}
+                className="h-9"
+                data-component-id="publish-pack-title"
+              />
+            </div>
+
+            {/* Description */}
+            <div>
+              <div className="flex items-baseline justify-between">
+                <h4 className={sectionLabel}>Description</h4>
+                <span className={cn('text-[0.625rem] tabular-nums', descOver ? 'text-destructive' : 'text-muted-foreground')}>
+                  {description.length}/250
+                </span>
+              </div>
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="A short summary of what this pack contains..."
+                rows={3}
+                className="text-xs resize-y min-h-16 max-h-40"
+                aria-invalid={descOver}
+                data-component-id="publish-pack-description"
+              />
+            </div>
+
+            {/* License */}
+            <div>
+              <h4 className={sectionLabel}>License</h4>
+              <select
+                value={license}
+                onChange={(e) => setLicense(e.target.value)}
+                className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                data-component-id="publish-pack-license"
+              >
+                {LICENSES.map((l) => (
+                  <option key={l.value} value={l.value}>{l.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Tags */}
+            <div>
+              <h4 className={sectionLabel}>Tags</h4>
+              {tags.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-1.5">
+                  {tags.map((tag) => (
+                    <Badge key={tag} variant="secondary" className="gap-1 text-xs">
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => removeTag(tag)}
+                        className="text-muted-foreground hover:text-foreground"
+                        aria-label={`Remove ${tag}`}
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <Input
+                value={tagDraft}
+                onChange={(e) => setTagDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ',') {
+                    e.preventDefault()
+                    addTag()
+                  }
+                }}
+                onBlur={addTag}
+                placeholder="Add a tag and press Enter"
+                className="h-9"
+                data-component-id="publish-pack-tags"
+              />
+            </div>
+
+            {/* Thumbnail */}
+            {thumbnailCandidates.length > 0 && (
+              <div>
+                <h4 className={sectionLabel}>Thumbnail</h4>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setThumbnailId(null)}
+                    className={cn(
+                      'grid size-14 place-items-center rounded-md border text-muted-foreground transition-colors',
+                      thumbnailId === null ? 'border-primary/40 bg-primary/5 text-foreground' : 'border-border/40 hover:border-border',
+                    )}
+                    aria-label="No thumbnail"
+                  >
+                    <ImageIcon className="size-4" />
+                  </button>
+                  {thumbnailCandidates.map((img) => (
+                    <button
+                      key={img.id}
+                      type="button"
+                      onClick={() => setThumbnailId(img.id)}
+                      className={cn(
+                        'size-14 overflow-hidden rounded-md border transition-colors',
+                        thumbnailId === img.id ? 'border-primary/60 ring-2 ring-primary/30' : 'border-border/40 hover:border-border',
+                      )}
+                      title={img.name}
+                    >
+                      <img src={img.content} alt={img.name} className="size-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* NSFW */}
+            <div
+              onClick={() => setNsfw((v) => !v)}
+              className="flex items-center gap-2.5 cursor-pointer group"
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setNsfw((v) => !v) } }}
+            >
+              <Checkbox checked={nsfw} className="size-3.5" tabIndex={-1} />
+              <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+                Mark as NSFW
+              </span>
+            </div>
+
+            {/* Version */}
+            <div>
+              <h4 className={sectionLabel}>Version</h4>
+              <div className="flex items-center gap-3">
+                <div className="flex rounded-lg bg-muted/25 p-[3px] gap-[3px]">
+                  {(['patch', 'minor', 'major'] as const).map((kind) => (
+                    <button
+                      key={kind}
+                      type="button"
+                      onClick={() => setBump(kind)}
+                      className={cn(
+                        'px-3 py-[6px] rounded-md text-[0.6875rem] font-medium capitalize transition-all duration-150',
+                        bump === kind ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      {kind}
+                    </button>
+                  ))}
+                </div>
+                <span className="font-mono text-sm tabular-nums">{nextVersion}</span>
+                {checkingPack && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
+              </div>
+              <p className="mt-1.5 text-[0.625rem] text-muted-foreground">
+                {latestVersion ? `Latest published: ${latestVersion}` : 'New pack, starting at 1.0.0'}
+              </p>
+            </div>
+
+            {/* MVP note */}
+            <p className="text-[0.625rem] leading-snug text-muted-foreground">
+              Packs carry fragments and their images only. Context blocks and agent
+              configuration are not included.
+            </p>
+
+            {error && <p className="text-[0.6875rem] text-destructive">{error}</p>}
+          </div>
+        )}
+
+        <DialogFooter className="gap-2 pt-3 border-t border-border/30">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="text-xs">
+            {publishedId ? 'Done' : 'Cancel'}
+          </Button>
+          {!publishedId && (
+            <Button
+              onClick={() => publishMut.mutate()}
+              disabled={!canPublish}
+              className="text-xs gap-1.5"
+              data-component-id="publish-pack-submit"
+            >
+              {publishMut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <UploadCloud className="size-3.5" />}
+              Publish {nextVersion}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}

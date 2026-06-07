@@ -21,6 +21,7 @@ export { agents } from './agents'
 export { tokenUsage } from './token-usage'
 export { folders } from './folders'
 export { sharing } from './sharing'
+export { erratanet } from './erratanet'
 
 // HTTP Client utilities (exported for advanced use cases)
 export { apiFetch, fetchStream, fetchEventStream } from './client'
@@ -43,6 +44,7 @@ import { agents } from './agents'
 import { tokenUsage } from './token-usage'
 import { folders } from './folders'
 import { sharing } from './sharing'
+import { erratanet } from './erratanet'
 
 export const api = {
   stories,
@@ -62,4 +64,5 @@ export const api = {
   tokenUsage,
   folders,
   sharing,
+  erratanet,
 }

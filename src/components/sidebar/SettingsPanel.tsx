@@ -7,6 +7,7 @@ import { useHelp } from '@/hooks/use-help'
 import { CustomCssPanel } from '@/components/settings/CustomCssPanel'
 import { TtsSettings } from '@/components/settings/TtsSettings'
 import { SharingPanel } from '@/components/settings/SharingPanel'
+import { ErratanetAccountCard } from '@/components/erratanet/ErratanetAccountCard'
 import { ProseColorsControls } from '@/components/settings/ProseColorsPanel'
 import { CustomTransformsControls } from '@/components/settings/CustomTransformsPanel'
 import { DesktopUpdatesControls } from '@/components/settings/DesktopUpdatesPanel'
@@ -751,7 +752,12 @@ export function SettingsPanel({
       </SettingsSection>
 
       {/* Remote access (auth + LAN + tunnel) */}
-      <SettingsSection id="set-remote" label="Remote" group="System"><SharingPanel /></SettingsSection>
+      <SettingsSection id="set-remote" label="Remote" group="System">
+        <div className="space-y-4">
+          <SharingPanel />
+          <ErratanetAccountCard storyId={storyId} />
+        </div>
+      </SettingsSection>
 
       {/* Plugins */}
       <SettingsSection id="set-plugins" label="Plugins" group="System">
