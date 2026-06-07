@@ -244,10 +244,12 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
     const challenge = await sha256Challenge(verifier)
     const canReturnHere = isOpenRouterAllowedCallbackOrigin(window.location)
 
+    const returnTo = new URL(window.location.pathname, window.location.origin)
     const callback = canReturnHere
-      ? new URL(window.location.pathname, window.location.origin)
+      ? returnTo
       : new URL(OPENROUTER_LOCAL_CALLBACK)
     callback.searchParams.set('openrouter_oauth', '1')
+    if (!canReturnHere) callback.searchParams.set('return_to', returnTo.toString())
 
     sessionStorage.setItem(OPENROUTER_OAUTH_SESSION_KEY, JSON.stringify({ verifier }))
 
@@ -264,7 +266,7 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
     setOauthNeedsPaste(true)
     setOauthStatus({
       type: 'success',
-      message: 'OpenRouter requires localhost OAuth callbacks on port 3000. Authorize in the new tab, then paste the returned localhost URL here.',
+      message: 'Authorize in the new tab. Errata will listen on localhost:3000 and return you here automatically; paste the returned URL only if it does not.',
     })
     window.open(authUrl.toString(), '_blank', 'noopener,noreferrer')
   }

@@ -3,6 +3,7 @@ import { loadAllPlugins } from './plugins/loader'
 import { clearRuntimePluginUi } from './plugins/runtime-ui'
 import { createApp } from './api'
 import { reconcileSharing } from './sharing/manager'
+import { ensureOpenRouterOAuthCallbackBridge } from './openrouter-oauth-callback'
 import type { WritingPlugin } from './plugins/types'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -95,6 +96,7 @@ async function initializeApp() {
   // production/dev entry (getApp) reconciles; tests calling createApp directly
   // never start the proxy machinery.
   void reconcileSharing(dataDir).catch((err) => console.error('[sharing] startup reconcile failed:', err))
+  void ensureOpenRouterOAuthCallbackBridge()
 
   return app
 }
