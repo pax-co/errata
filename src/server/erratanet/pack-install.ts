@@ -79,20 +79,19 @@ function bytesToBase64(bytes: Uint8Array): string {
 /** Resolve a single `asset://<hash>` content reference to an inline data URL. */
 function resolveAssetContent(
   content: string,
-  resolveBytes: (assetKey: string) => Uint8Array | undefined,
+  resolve: (assetKey: string) => { bytes: Uint8Array; mime: string } | undefined,
 ): string {
   const match = ASSET_URI_RE.exec(content)
   if (!match) return content
-  const assetKey = match[1]
-  const bytes = resolveBytes(assetKey)
-  if (!bytes) return content
-  return `data:${mimeForExt(assetKey)};base64,${bytesToBase64(bytes)}`
+  const found = resolve(match[1])
+  if (!found) return content
+  return `data:${found.mime};base64,${bytesToBase64(found.bytes)}`
 }
 
 /** Re-inline every attachment whose content is an `asset://` uri. */
 function reinlineBundleAssets(
   bundle: FragmentBundleData,
-  resolveBytes: (assetKey: string) => Uint8Array | undefined,
+  resolve: (assetKey: string) => { bytes: Uint8Array; mime: string } | undefined,
 ): FragmentBundleData {
   const fragments: FragmentExportEntry[] = bundle.fragments.map((entry) => {
     if (!entry.attachments || entry.attachments.length === 0) return entry
@@ -100,7 +99,7 @@ function reinlineBundleAssets(
       ...entry,
       attachments: entry.attachments.map((att) => ({
         ...att,
-        content: resolveAssetContent(att.content, resolveBytes),
+        content: resolveAssetContent(att.content, resolve),
       })),
     }
   })
@@ -136,7 +135,7 @@ export function unwrapPack(zipBytes: Uint8Array): UnwrappedPack {
       throw new Error(`Invalid fragment-pack: missing ${PAYLOAD_BUNDLE_PATH}`)
     }
     const rawBundle = JSON.parse(strFromU8(bundleBytes)) as FragmentBundleData
-    const bundle = reinlineBundleAssets(rawBundle, (assetKey) => findAssetBytes(extracted, assetKey))
+    const bundle = reinlineBundleAssets(rawBundle, (assetKey) => findAsset(extracted, assetKey))
     return { manifest, contentKind: 'fragment-pack', bundle }
   }
 
@@ -156,15 +155,17 @@ export function unwrapPack(zipBytes: Uint8Array): UnwrappedPack {
  * Find the raw bytes for an `asset://<hash>` reference. The hash may or may not
  * carry an extension, so we match `assets/<hash>` exactly or `assets/<hash>.*`.
  */
-function findAssetBytes(
+function findAsset(
   extracted: Record<string, Uint8Array>,
   assetKey: string,
-): Uint8Array | undefined {
+): { bytes: Uint8Array; mime: string } | undefined {
+  // The stored file keeps the original extension (assets/<hash>.<ext>), so the
+  // mime comes from the matched path, not the bare hash in the asset:// uri.
   const exact = extracted[`assets/${assetKey}`]
-  if (exact) return exact
+  if (exact) return { bytes: exact, mime: mimeForExt(assetKey) }
   const prefix = `assets/${assetKey}.`
   for (const [path, bytes] of Object.entries(extracted)) {
-    if (path.startsWith(prefix)) return bytes
+    if (path.startsWith(prefix)) return { bytes, mime: mimeForExt(path) }
   }
   return undefined
 }
@@ -318,9 +319,12 @@ export async function installFragmentBundle(
     // (c) Remap refs[] and meta id references through the idMap. Build a
     // temporary Fragment so we can reuse the shared remap helper, then merge.
     const baseMeta: Record<string, unknown> = { ...(entry.meta ?? {}) }
-    if (visualRefs.length > 0) {
-      const existing = Array.isArray(baseMeta.visualRefs) ? (baseMeta.visualRefs as VisualRef[]) : []
-      baseMeta.visualRefs = [...existing, ...visualRefs]
+    const originalRefs = Array.isArray(baseMeta.visualRefs) ? (baseMeta.visualRefs as VisualRef[]) : []
+    if (originalRefs.length > 0 || visualRefs.length > 0) {
+      // Keep visual refs to fragments bundled here (remapped below); drop the
+      // dangling ones (their image arrives via attachments instead); then add
+      // the attachment-derived refs.
+      baseMeta.visualRefs = [...originalRefs.filter((ref) => idMap.has(ref.fragmentId)), ...visualRefs]
     }
 
     const remapped = remapFragment(
