@@ -26,7 +26,7 @@ vi.mock('@/server/erratanet/hub-client', () => ({
 
 import { createTempDir, makeTestSettings } from '../setup'
 import { createApp } from '@/server/api'
-import { createStory, listFragments } from '@/server/fragments/storage'
+import { createStory, getStory, listFragments } from '@/server/fragments/storage'
 import { getGlobalConfigSafe, getErratanetConfig } from '@/server/config/storage'
 import { buildFragmentPack } from '@/server/erratanet/pack-build'
 import type { FragmentBundleData } from '@/lib/fragment-clipboard'
@@ -260,17 +260,20 @@ describe('erratanet routes', () => {
     expect(callArgs[3].byteLength).toBeGreaterThan(0)
   })
 
-  it('POST /erratanet/publish with a storyId builds a story pack', async () => {
+  it('POST /erratanet/publish with a storyId builds a story pack, forwards visibility, stamps provenance', async () => {
     await post('/erratanet/config', { hubUrl: 'https://hub.example.com', token: 'tok' })
     hubMocks.publishVersion.mockResolvedValueOnce({ id: '@me/my-story', version: '1.0.0' })
 
     const res = await post('/erratanet/publish', {
       storyId,
+      unlisted: true,
       manifest: { ...manifest, id: '@me/my-story' },
     })
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.id).toBe('@me/my-story')
+    // The publish response echoes where the story is now published.
+    expect(body.publishedAs).toEqual({ pack: '@me/my-story', version: '1.0.0' })
 
     expect(hubMocks.publishVersion).toHaveBeenCalledTimes(1)
     const callArgs = hubMocks.publishVersion.mock.calls[0]
@@ -278,6 +281,12 @@ describe('erratanet routes', () => {
     expect(callArgs[2].contentKind).toBe('story')
     expect(callArgs[3]).toBeInstanceOf(Uint8Array)
     expect(callArgs[3].byteLength).toBeGreaterThan(0)
+    // The visibility flag is forwarded to the hub.
+    expect(callArgs[4]).toEqual({ unlisted: true })
+
+    // The local story is stamped so the sidebar can offer "sync" later.
+    const story = await getStory(dataDir, storyId)
+    expect(story?.settings.erratanet?.publishedAs).toEqual({ pack: '@me/my-story', version: '1.0.0' })
   })
 
   it('POST /erratanet/publish 422s when neither bundleJson nor storyId is given', async () => {

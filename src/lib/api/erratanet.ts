@@ -29,7 +29,12 @@ export const erratanet = {
     apiFetch<ErratanetPackDetail>(
       `/erratanet/packs/${encodeURIComponent(id)}${version ? `?version=${encodeURIComponent(version)}` : ''}`,
     ),
-  publish: (body: { bundleJson?: string; storyId?: string; manifest: ErratapackManifest }) =>
+  publish: (body: {
+    bundleJson?: string
+    storyId?: string
+    unlisted?: boolean
+    manifest: ErratapackManifest
+  }) =>
     apiFetch<ErratanetPublishResponse>('/erratanet/publish', {
       method: 'POST',
       body: JSON.stringify(body),

@@ -142,12 +142,14 @@ export const StoryMetaSchema = z.object({
       guidedSceneSettingPrompt: z.string().optional(),
       guidedSuggestPrompt: z.string().optional(),
       disableThinking: z.boolean().default(false),
-      // Provenance for stories installed from an erratanet pack. Absent for
-      // locally created stories.
+      // erratanet provenance. Absent for purely local stories.
       erratanet: z
         .object({
-          pack: z.string(),
-          version: z.string(),
+          // Where this story was installed from (a story pack), if any.
+          pack: z.string().optional(),
+          version: z.string().optional(),
+          // Where this story is published to. Set on publish; drives "sync".
+          publishedAs: z.object({ pack: z.string(), version: z.string() }).optional(),
         })
         .optional(),
     })

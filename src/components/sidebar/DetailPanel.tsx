@@ -13,6 +13,7 @@ import { ArchivePanel } from './ArchivePanel'
 import { TimelineManagerPanel } from './TimelineManagerPanel'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { ErratanetPanel } from '@/components/erratanet/ErratanetPanel'
 import { X, ChevronsLeftRight, ChevronsRightLeft } from 'lucide-react'
 import { componentId } from '@/lib/dom-ids'
 
@@ -59,6 +60,7 @@ const SECTION_TITLES: Record<string, string> = {
   blocks: 'Block Editor',
   agents: 'Agents',
   settings: 'Settings',
+  erratanet: 'ErrataNet',
   'agent-activity': 'Librarian',
 }
 
@@ -194,6 +196,10 @@ export function DetailPanel({
 
       {activeSection === 'agents' && (
         <AgentsPanel storyId={storyId} />
+      )}
+
+      {activeSection === 'erratanet' && (
+        <ErratanetPanel storyId={storyId} story={story} onExport={onExport} />
       )}
 
       {activeSection === 'context-order' && (

@@ -36,6 +36,7 @@ import {
   CircleHelp,
   GitBranch,
   Radio,
+  Library,
 } from 'lucide-react'
 import { useHelp } from '@/hooks/use-help'
 import { componentId } from '@/lib/dom-ids'
@@ -51,6 +52,7 @@ export type SidebarSection =
   | 'context-order'
   | 'agents'
   | 'settings'
+  | 'erratanet'
   | 'agent-activity'
   | `plugin-${string}`
   | null
@@ -365,6 +367,18 @@ export function StorySidebar({
             >
               <CircleHelp className="size-4" />
               <span>Help</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              isActive={activeSection === 'erratanet'}
+              onClick={() => handleToggle('erratanet')}
+              tooltip="ErrataNet"
+              data-component-id="sidebar-section-erratanet"
+            >
+              <Library className="size-4" />
+              <span>ErrataNet</span>
+              <ChevronRight className="ml-auto size-3.5 text-muted-foreground" />
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>

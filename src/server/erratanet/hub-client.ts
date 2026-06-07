@@ -51,6 +51,7 @@ export interface HubClient {
     id: string,
     manifest: ErratapackManifest,
     packZip: Uint8Array,
+    opts?: { unlisted?: boolean },
   ): Promise<HubPublishResult>
   login(
     hubUrl: string,
@@ -170,6 +171,7 @@ export async function publishVersion(
   id: string,
   manifest: ErratapackManifest,
   packZip: Uint8Array,
+  opts?: { unlisted?: boolean },
 ): Promise<HubPublishResult> {
   const { hubUrl, token } = await resolveHub(dataDir)
   const form = new FormData()
@@ -178,6 +180,7 @@ export async function publishVersion(
   // ArrayBuffer backing the view.
   const bytes = packZip.slice()
   form.set('pack', new Blob([bytes], { type: 'application/zip' }), `${manifest.version}.errata.zip`)
+  if (opts?.unlisted !== undefined) form.set('unlisted', opts.unlisted ? 'true' : 'false')
   const res = await fetch(
     hubEndpoint(hubUrl, `/api/v1/packages/${encodeURIComponent(id)}/versions`),
     {

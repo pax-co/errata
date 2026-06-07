@@ -10,7 +10,7 @@ import {
 } from '../erratanet/hub-client'
 import { buildFragmentPack, buildStoryPack, type PackManifestInput } from '../erratanet/pack-build'
 import { unwrapPack, installFragmentBundle, installStoryPack } from '../erratanet/pack-install'
-import { getStory, listFragments } from '../fragments/storage'
+import { getStory, listFragments, updateStory } from '../fragments/storage'
 import type { ErratanetConfig } from '../config/schema'
 
 /** Normalize an unknown error into a message string. */
@@ -185,8 +185,19 @@ export function erratanetRoutes(dataDir: string) {
         const built = body.bundleJson
           ? buildFragmentPack({ bundleJson: body.bundleJson, manifestInput })
           : await buildStoryPack(dataDir, body.storyId!, manifestInput)
-        const result = await hubPublishVersion(dataDir, built.manifest.id, built.manifest, built.zip)
-        return { id: result.id, version: result.version }
+        const result = await hubPublishVersion(dataDir, built.manifest.id, built.manifest, built.zip, {
+          unlisted: body.unlisted ?? false,
+        })
+
+        // Stamp the local story so it knows where it is published; this is what
+        // the sidebar reads to offer "sync" (publish an update) later.
+        let publishedAs: { pack: string; version: string } | undefined
+        if (body.storyId && built.manifest.contentKind === 'story') {
+          publishedAs = { pack: result.id, version: result.version }
+          await stampStoryPublished(dataDir, body.storyId, publishedAs)
+        }
+
+        return { id: result.id, version: result.version, publishedAs }
       } catch (e) {
         set.status = 422
         return { error: errorMessage(e) }
@@ -196,6 +207,7 @@ export function erratanetRoutes(dataDir: string) {
       body: t.Object({
         bundleJson: t.Optional(t.String()),
         storyId: t.Optional(t.String()),
+        unlisted: t.Optional(t.Boolean()),
         manifest: manifestBody,
       }),
     })
@@ -269,6 +281,21 @@ export function erratanetRoutes(dataDir: string) {
         }
       }))
     }, { detail: { summary: 'Check installed packs for available updates' } })
+}
+
+/** Record where a story is published, preserving any install provenance. */
+async function stampStoryPublished(
+  dataDir: string,
+  storyId: string,
+  publishedAs: { pack: string; version: string },
+): Promise<void> {
+  const story = await getStory(dataDir, storyId)
+  if (!story) return
+  const existing = (story.settings.erratanet ?? {}) as Record<string, unknown>
+  await updateStory(dataDir, {
+    ...story,
+    settings: { ...story.settings, erratanet: { ...existing, publishedAs } },
+  })
 }
 
 /**

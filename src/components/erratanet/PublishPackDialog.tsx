@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Fragment } from '@/lib/api'
 import type { ErratapackManifest } from '@/lib/erratanet/pack-schema'
 import { GLOBAL_PACK_ID_REGEX } from '@/lib/erratanet/pack-schema'
@@ -35,6 +35,8 @@ interface PublishPackDialogProps {
   mode?: 'fragments' | 'story'
   /** Required for story mode: the story to publish whole. */
   storyId?: string
+  /** Pre-fill the slug (used by "sync" to re-publish to the same pack). */
+  defaultSlug?: string
   /** The guideline / character / knowledge fragments to publish. */
   selectedFragments: Fragment[]
   /** Image + icon fragments by id, for resolving attachments and thumbnails. */
@@ -89,11 +91,13 @@ export function PublishPackDialog({
   onOpenChange,
   mode = 'fragments',
   storyId,
+  defaultSlug,
   selectedFragments,
   mediaById,
   storyName,
 }: PublishPackDialogProps) {
   const isStory = mode === 'story'
+  const qc = useQueryClient()
   const [slug, setSlug] = useState('')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -101,6 +105,7 @@ export function PublishPackDialog({
   const [tags, setTags] = useState<string[]>([])
   const [tagDraft, setTagDraft] = useState('')
   const [nsfw, setNsfw] = useState(false)
+  const [visibility, setVisibility] = useState<'public' | 'unlisted'>('public')
   const [bump, setBump] = useState<BumpKind>('patch')
   const [thumbnailId, setThumbnailId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -149,12 +154,15 @@ export function PublishPackDialog({
     return out
   }, [selectedFragments, mediaById])
 
-  // Reset transient state whenever the dialog opens.
+  // Reset transient state whenever the dialog opens. A defaultSlug (sync)
+  // pre-fills the pack to re-publish to.
   useEffect(() => {
     if (open) {
       setError(null)
       setPublishedId(null)
+      if (defaultSlug) setSlug(defaultSlug)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   // Default the title from the story name once, when empty.
@@ -217,7 +225,7 @@ export function PublishPackDialog({
           fragmentCount: 0,
           payloadHash: '',
         }
-        return api.erratanet.publish({ storyId, manifest })
+        return api.erratanet.publish({ storyId, manifest, unlisted: visibility === 'unlisted' })
       }
 
       if (selectedFragments.length === 0) throw new Error('Select at least one fragment to publish.')
@@ -229,11 +237,17 @@ export function PublishPackDialog({
         fragmentCount: selectedFragments.length,
         payloadHash: await sha256Hex(bundleJson),
       }
-      return api.erratanet.publish({ bundleJson, manifest })
+      return api.erratanet.publish({ bundleJson, manifest, unlisted: visibility === 'unlisted' })
     },
     onSuccess: (res) => {
       setPublishedId(res.id)
       setError(null)
+      // A story publish stamps provenance server-side; refresh so the sidebar
+      // picks up the new "published as" state.
+      if (storyId) {
+        qc.invalidateQueries({ queryKey: ['story', storyId] })
+        qc.invalidateQueries({ queryKey: ['stories'] })
+      }
     },
     onError: (e: unknown) => {
       setError(e instanceof Error ? e.message : 'Publish failed.')
@@ -434,6 +448,31 @@ export function PublishPackDialog({
               <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">
                 Mark as NSFW
               </span>
+            </div>
+
+            {/* Visibility */}
+            <div>
+              <h4 className={sectionLabel}>Visibility</h4>
+              <div className="flex w-fit gap-[3px] rounded-lg bg-muted/25 p-[3px]">
+                {(['public', 'unlisted'] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setVisibility(v)}
+                    className={cn(
+                      'rounded-md px-3 py-[6px] text-[0.6875rem] font-medium capitalize transition-all duration-150',
+                      visibility === v ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1.5 text-[0.625rem] text-muted-foreground">
+                {visibility === 'public'
+                  ? 'Listed in search and explore.'
+                  : 'Hidden from search. Only people with the link can find it.'}
+              </p>
             </div>
 
             {/* Version */}
