@@ -186,15 +186,31 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     const url = new URL(window.location.href)
     const code = url.searchParams.get('code')
+    const error = url.searchParams.get('openrouter_oauth_error')
     const isOpenRouterCallback = url.searchParams.get('openrouter_oauth') === '1'
-    if (!isOpenRouterCallback || !code) return
+    if (!isOpenRouterCallback) return
 
     const stored = sessionStorage.getItem(OPENROUTER_OAUTH_SESSION_KEY)
 
     const cleanupUrl = () => {
       url.searchParams.delete('openrouter_oauth')
       url.searchParams.delete('code')
+      url.searchParams.delete('openrouter_oauth_error')
       window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
+    }
+
+    setEditingId(null)
+    setForm({ ...emptyForm })
+
+    if (error) {
+      setOauthStatus({ type: 'error', message: `OpenRouter sign-in failed: ${error}` })
+      cleanupUrl()
+      return
+    }
+
+    if (!code) {
+      cleanupUrl()
+      return
     }
 
     if (!stored) {
@@ -233,6 +249,9 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
     setFetchedModels([])
     setFetchError(null)
     setUseCustomModel(false)
+    setOauthStatus(null)
+    setOauthNeedsPaste(false)
+    setOauthCodeInput('')
   }
 
   const connectOpenRouter = async () => {
@@ -438,6 +457,40 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
         /* ─── Add / Edit Form ─── */
         <ScrollArea className="flex-1" data-component-id="provider-form-scroll">
           <div className="max-w-2xl mx-auto p-6 space-y-5">
+            {!editingId && (
+              <>
+                <div className="rounded-md border border-border/30 bg-accent/10 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button type="button" size="sm" className="gap-1.5" onClick={connectOpenRouter}>
+                      <KeyRound className="size-3.5" />
+                      Connect OpenRouter
+                    </Button>
+                  </div>
+                  {oauthStatus && (
+                    <p className={`mt-2 text-[0.6875rem] ${oauthStatus.type === 'success' ? 'text-emerald-500' : 'text-destructive'}`}>
+                      {oauthStatus.message}
+                    </p>
+                  )}
+                  {oauthNeedsPaste && (
+                    <div className="mt-3 flex gap-2">
+                      <input
+                        value={oauthCodeInput}
+                        onChange={(e) => setOauthCodeInput(e.target.value)}
+                        className="h-9 flex-1 rounded-md border border-border/50 bg-background px-3 text-xs outline-none focus:border-primary/50"
+                        placeholder="Paste localhost callback URL or code"
+                      />
+                      <Button type="button" size="sm" className="shrink-0 gap-1.5" onClick={handleOpenRouterCodeSubmit} disabled={oauthExchanging}>
+                        {oauthExchanging ? <Loader2 className="size-3.5 animate-spin" /> : <KeyRound className="size-3.5" />}
+                        Finish
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-t border-border/40" />
+              </>
+            )}
+
             {/* Preset selector (only for new providers) */}
             {!editingId && (
               <div>
@@ -671,40 +724,6 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
         /* ─── Provider List ─── */
         <ScrollArea className="flex-1">
           <div className="max-w-2xl mx-auto p-6 space-y-2">
-            <div className="mb-4 rounded-lg border border-border/30 bg-accent/10 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">OpenRouter OAuth</p>
-                  <p className="mt-0.5 text-[0.6875rem] leading-snug text-muted-foreground">
-                    Connect in the browser. Errata stores the returned API key and defaults to the free router.
-                  </p>
-                </div>
-                <Button size="sm" className="shrink-0 gap-1.5" onClick={connectOpenRouter}>
-                  <KeyRound className="size-3.5" />
-                  Connect OpenRouter
-                </Button>
-              </div>
-              {oauthStatus && (
-                <p className={`mt-2 text-[0.6875rem] ${oauthStatus.type === 'success' ? 'text-emerald-500' : 'text-destructive'}`}>
-                  {oauthStatus.message}
-                </p>
-              )}
-              {oauthNeedsPaste && (
-                <div className="mt-3 flex gap-2">
-                  <input
-                    value={oauthCodeInput}
-                    onChange={(e) => setOauthCodeInput(e.target.value)}
-                    className="h-9 flex-1 rounded-md border border-border/50 bg-background px-3 text-xs outline-none focus:border-primary/50"
-                    placeholder="Paste localhost callback URL or code"
-                  />
-                  <Button size="sm" className="shrink-0 gap-1.5" onClick={handleOpenRouterCodeSubmit} disabled={oauthExchanging}>
-                    {oauthExchanging ? <Loader2 className="size-3.5 animate-spin" /> : <KeyRound className="size-3.5" />}
-                    Finish
-                  </Button>
-                </div>
-              )}
-            </div>
-
             {providers.length === 0 && (
               <div className="text-center py-12">
                 <EmptyHint size="sm" className="mb-4">No providers configured.</EmptyHint>
