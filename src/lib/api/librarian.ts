@@ -1,4 +1,5 @@
 import { apiFetch, fetchEventStream, fetchGetEventStream } from './client'
+import { readPovCharacterId } from './generation'
 import type {
   LibrarianState,
   LibrarianAnalysisSummary,
@@ -52,6 +53,8 @@ export const librarian = {
     contextBefore: options?.contextBefore,
     contextAfter: options?.contextAfter,
     instruction: options?.instruction,
+    // Follows the POV picker like generation calls; undefined = narrator.
+    povCharacterId: readPovCharacterId(storyId),
   }),
   chat: (storyId: string, messages: Array<{ role: 'user' | 'assistant'; content: string }>) =>
     fetchEventStream(`/stories/${storyId}/librarian/chat`, { messages }),
@@ -64,10 +67,10 @@ export const librarian = {
   // Conversations
   listConversations: (storyId: string) =>
     apiFetch<ConversationMeta[]>(`/stories/${storyId}/librarian/conversations`),
-  createConversation: (storyId: string, title?: string) =>
+  createConversation: (storyId: string, title?: string, povCharacterId?: string) =>
     apiFetch<ConversationMeta>(`/stories/${storyId}/librarian/conversations`, {
       method: 'POST',
-      body: JSON.stringify({ title }),
+      body: JSON.stringify({ title, ...(povCharacterId ? { povCharacterId } : {}) }),
     }),
   deleteConversation: (storyId: string, conversationId: string) =>
     apiFetch<{ ok: boolean }>(`/stories/${storyId}/librarian/conversations/${conversationId}`, {

@@ -2,7 +2,7 @@ import { agentBlockRegistry } from '../agents/agent-block-registry'
 import { instructionRegistry } from '../instructions'
 import type { AgentBlockContext } from '../agents/agent-block-context'
 import { registry } from '../fragments/registry'
-import { createDefaultBlocks, buildContextState, type ContextBuildState, type ContextBlock } from './context-builder'
+import { createDefaultBlocks, buildContextState, POV_PREVIEW_VOICE, type ContextBuildState, type ContextBlock } from './context-builder'
 import { createPrewriterBlocks, buildPrewriterPreviewContext, createWriterBriefBlocks, PREWRITER_INSTRUCTIONS } from './prewriter'
 import {
   GENERATION_SYSTEM_PROMPT,
@@ -54,7 +54,7 @@ function createGenerationBlocks(ctx: AgentBlockContext): ContextBlock[] {
   if (ctx.story.settings.generationMode === 'prewriter') {
     const toolLines = buildToolLines(ctx.pluginToolDescriptions)
     const placeholderBrief = '(The prewriter will generate a brief at generation time.)'
-    return createWriterBriefBlocks(ctx.proseFragments, placeholderBrief, toolLines, ctx.modelId)
+    return createWriterBriefBlocks(ctx.proseFragments, placeholderBrief, toolLines, ctx.modelId, ctx.povVoice)
   }
 
   const state: ContextBuildState = {
@@ -68,6 +68,7 @@ function createGenerationBlocks(ctx: AgentBlockContext): ContextBlock[] {
     knowledgeShortlist: ctx.knowledgeShortlist,
     characterShortlist: ctx.characterShortlist,
     authorInput: '(preview)',
+    povVoice: ctx.povVoice,
   }
   const extraTools = ctx.pluginToolDescriptions?.map(t => ({
     name: t.name,
@@ -90,6 +91,8 @@ async function buildGenerationPreviewContext(dataDir: string, storyId: string): 
     knowledgeShortlist: state.knowledgeShortlist,
     characterShortlist: state.characterShortlist,
     systemPromptFragments: [],
+    // Placeholder so pov-voice is enumerated/configurable in the block editor.
+    povVoice: POV_PREVIEW_VOICE,
   }
 }
 

@@ -38,6 +38,7 @@ import {
 import { EmptyState } from '@/components/ui/async-view'
 import { RefinementPanel } from '@/components/refinement/RefinementPanel'
 import { LibrarianChat } from '@/components/librarian/LibrarianChat'
+import { readPovCharacterId } from '@/lib/api/generation'
 
 interface LibrarianPanelProps {
   storyId: string
@@ -72,7 +73,8 @@ export function LibrarianPanel({ storyId, askFragmentId, askPrefill, onAskFragme
   })
 
   const createConversationMutation = useMutation({
-    mutationFn: (title: string | undefined) => api.librarian.createConversation(storyId, title),
+    mutationFn: (title: string | undefined) =>
+      api.librarian.createConversation(storyId, title, readPovCharacterId(storyId)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['librarian-conversations', storyId] })
     },
@@ -90,7 +92,9 @@ export function LibrarianPanel({ storyId, askFragmentId, askPrefill, onAskFragme
     setActiveConversationId(null)
   }, [storyId])
 
-  // Handle ask librarian from prose action panel — always create a new conversation
+  // Handle ask librarian from prose action panel — always create a new conversation.
+  // The POV picker's current selection is captured at creation; the conversation
+  // keeps that voice for its lifetime (server-side).
   useEffect(() => {
     if (!askFragmentId) return
     setActiveTab('chat')
@@ -102,7 +106,7 @@ export function LibrarianPanel({ storyId, askFragmentId, askPrefill, onAskFragme
       },
     })
     onAskFragmentConsumed?.()
-  }, [askFragmentId, askPrefill, onAskFragmentConsumed])
+  }, [askFragmentId, askPrefill, onAskFragmentConsumed, storyId])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -169,7 +173,11 @@ export function LibrarianPanel({ storyId, askFragmentId, askPrefill, onAskFragme
               </button>
             </div>
             <div className="flex-1 min-h-0">
-              <LibrarianChat storyId={storyId} conversationId={activeConversationId} initialInput={chatInitialInput} />
+              <LibrarianChat
+                storyId={storyId}
+                conversationId={activeConversationId}
+                initialInput={chatInitialInput}
+              />
             </div>
           </div>
         ) : (

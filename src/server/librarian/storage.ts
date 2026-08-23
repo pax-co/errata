@@ -453,6 +453,8 @@ export interface ConversationMeta {
   title: string
   createdAt: string
   updatedAt: string
+  /** POV captured at creation (prose-refine conversations only); undefined = no voice context. */
+  povCharacterId?: string
 }
 
 interface ConversationsIndex {
@@ -492,6 +494,7 @@ export async function createConversation(
   dataDir: string,
   storyId: string,
   title: string,
+  povCharacterId?: string,
 ): Promise<ConversationMeta> {
   return withIndexLock(storyId, async () => {
     const index = await readConversationsIndex(dataDir, storyId)
@@ -501,6 +504,7 @@ export async function createConversation(
       title,
       createdAt: now,
       updatedAt: now,
+      ...(povCharacterId ? { povCharacterId } : {}),
     }
     index.conversations.push(conversation)
     await writeConversationsIndex(dataDir, storyId, index)

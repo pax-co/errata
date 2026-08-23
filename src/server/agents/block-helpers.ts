@@ -8,7 +8,7 @@
 import type { ContextBlock } from '../llm/context-builder'
 import type { AgentBlockContext } from './agent-block-context'
 import type { Fragment } from '../fragments/schema'
-import { buildContextState } from '../llm/context-builder'
+import { buildContextState, getFragmentVoice } from '../llm/context-builder'
 import { instructionRegistry } from '../instructions'
 
 // ─── Block helpers ───
@@ -108,7 +108,7 @@ export function proseSummariesBlock(ctx: AgentBlockContext, header: string): Con
   }
 }
 
-/** Target fragment + optional user instructions. */
+/** Target fragment + optional user instructions. Characters include their POV voice notes so edits stay consistent with them. */
 export function targetFragmentBlock(
   ctx: AgentBlockContext,
   label: string,
@@ -116,6 +116,10 @@ export function targetFragmentBlock(
 ): ContextBlock | null {
   if (!ctx.targetFragment) return null
   const parts = [`Target ${label}: ${ctx.targetFragment.id} (type: ${ctx.targetFragment.type}, name: "${ctx.targetFragment.name}")`]
+  const voice = ctx.targetFragment.type === 'character' ? getFragmentVoice(ctx.targetFragment) : undefined
+  if (voice) {
+    parts.push(`\nThe character's POV voice notes (${ctx.targetFragment.id}.meta.voice):\n${voice}`)
+  }
   if (ctx.instructions) {
     parts.push(`\nUser instructions: ${ctx.instructions}`)
   } else {

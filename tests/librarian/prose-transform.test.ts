@@ -179,4 +179,65 @@ describe('prose transform sticky context', () => {
     expect(userContent).not.toContain('Keep the prose gothic and moody.')
     expect(userContent).toContain('Selected span to transform:')
   })
+
+  describe('pov voice', () => {
+    interface StreamCall {
+      messages: Array<{ role: string; content: string }>
+    }
+
+    async function runTransformWithPov(povCharacterId?: string): Promise<string> {
+      mockAgentStream.mockResolvedValue(mockStreamResponse('The sentinel darted down the corridor.'))
+      const result = await transformProseSelection(dataDir, storyId, {
+        fragmentId: 'pr-0001',
+        selectedText: 'The guard moved quickly down the hall.',
+        operation: 'expand',
+        povCharacterId,
+      })
+      await drainEventStream(result)
+
+      const call = mockAgentStream.mock.calls[0][0] as StreamCall
+      const userMessage = call.messages.find(m => m.role === 'user')
+      expect(userMessage).toBeDefined()
+      return userMessage!.content
+    }
+
+    it('resolves povCharacterId into the pov-voice block', async () => {
+      await createFragment(dataDir, storyId, makeFragment({
+        id: 'ch-rider1',
+        type: 'character',
+        name: 'Rider',
+        description: 'A courier',
+        content: 'A fast-talking courier.',
+        meta: { voice: 'Clipped, sardonic.' },
+      }))
+
+      const userContent = await runTransformWithPov('ch-rider1')
+      expect(userContent).toContain("Write from Rider's point of view")
+      expect(userContent).toContain('Clipped, sardonic.')
+    })
+
+    it('falls back to natural-speech guidance when the character has no voice notes', async () => {
+      await createFragment(dataDir, storyId, makeFragment({
+        id: 'ch-rider1',
+        type: 'character',
+        name: 'Rider',
+        description: 'A courier',
+        content: 'A fast-talking courier.',
+      }))
+
+      const userContent = await runTransformWithPov('ch-rider1')
+      expect(userContent).toContain("Write from Rider's point of view")
+      expect(userContent).toContain('match how Rider naturally speaks elsewhere in the story')
+    })
+
+    it('omits the pov-voice block without povCharacterId', async () => {
+      const userContent = await runTransformWithPov()
+      expect(userContent).not.toContain("point of view, fully using")
+    })
+
+    it('ignores a povCharacterId that is not a character fragment', async () => {
+      const userContent = await runTransformWithPov('pr-0001')
+      expect(userContent).not.toContain("point of view, fully using")
+    })
+  })
 })

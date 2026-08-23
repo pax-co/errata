@@ -11,7 +11,7 @@ import {
   findSectionIndex,
 } from '../fragments/prose-chain'
 import { generateFragmentId } from '@/lib/fragment-ids'
-import { buildContextState, createDefaultBlocks, compileBlocks, addCacheBreakpoints, expandMessagesFragmentTags } from '../llm/context-builder'
+import { buildContextState, createDefaultBlocks, compileBlocks, addCacheBreakpoints, expandMessagesFragmentTags, resolvePovVoicePlaceholders, type BuildContextOptions } from '../llm/context-builder'
 import { applyBlockConfig } from '../blocks/apply'
 import { createScriptHelpers } from '../blocks/script-context'
 import { createFragmentTools } from '../llm/tools'
@@ -137,13 +137,14 @@ export function generationRoutes(dataDir: string) {
       // Build context with plugin hooks
       // When regenerating/refining, exclude the fragment being replaced from context
       requestLogger.info('Building context...')
-      const buildContextOpts = (mode === 'regenerate' || mode === 'refine') && existingFragment
+      const buildContextOpts: BuildContextOptions = (mode === 'regenerate' || mode === 'refine') && existingFragment
         ? {
             excludeFragmentId: existingFragment.id,
             proseBeforeFragmentId: existingFragment.id,
             summaryBeforeFragmentId: existingFragment.id,
           }
         : {}
+      buildContextOpts.povCharacterId = body.povCharacterId
       let ctxState = await buildContextState(dataDir, params.storyId, effectiveInput, buildContextOpts)
       const contextFragments = {
         proseCount: ctxState.proseFragments.length,
@@ -195,6 +196,8 @@ export function generationRoutes(dataDir: string) {
       const scriptContext = { ...ctxState, ...createScriptHelpers(dataDir, params.storyId) }
       let blocks = createDefaultBlocks(ctxState, extraTools.length > 0 ? { extraTools } : undefined)
       blocks = await applyBlockConfig(blocks, agentConfig, scriptContext)
+      // Resolve POV placeholders after config so overrides control placement.
+      blocks = resolvePovVoicePlaceholders(blocks, ctxState.povVoice)
       blocks = await runBeforeBlocks(enabledPlugins, blocks)
 
       // In prewriter mode, strip writer-only blocks from the context that gets
@@ -361,8 +364,9 @@ export function generationRoutes(dataDir: string) {
                 // knowledge AND no brief — strictly worse than the full context.
                 // Fall back to the full context (writerMessages already === modelMessages).
                 if (prewriterResult.brief.trim()) {
-                  const writerBlocks = createWriterBriefBlocks(ctxState.proseFragments, prewriterResult.brief, toolLinesList, resolvedModelId)
-                  const finalWriterBlocks = await applyBlockConfig(writerBlocks, agentConfig, scriptContext)
+                  const writerBlocks = createWriterBriefBlocks(ctxState.proseFragments, prewriterResult.brief, toolLinesList, resolvedModelId, ctxState.povVoice)
+                  const configuredWriterBlocks = await applyBlockConfig(writerBlocks, agentConfig, scriptContext)
+                  const finalWriterBlocks = resolvePovVoicePlaceholders(configuredWriterBlocks, ctxState.povVoice)
                   let writerCompiled = compileBlocks(finalWriterBlocks)
                   writerCompiled = await expandMessagesFragmentTags(writerCompiled, dataDir, params.storyId)
                   writerMessages = addCacheBreakpoints(writerCompiled)
@@ -682,6 +686,7 @@ export function generationRoutes(dataDir: string) {
         saveResult: t.Optional(t.Boolean()),
         mode: t.Optional(t.Union([t.Literal('generate'), t.Literal('regenerate'), t.Literal('refine')])),
         fragmentId: t.Optional(t.String()),
+        povCharacterId: t.Optional(t.String()),
         clarifications: t.Optional(t.Array(t.Object({ question: t.String(), answer: t.String() }))),
         clarifyRound: t.Optional(t.Number()),
       }),

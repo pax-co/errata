@@ -1,7 +1,7 @@
 import { tool, ToolLoopAgent, stepCountIs, hasToolCall, type ToolSet, type ProviderOptions } from 'ai'
 import { z } from 'zod/v4'
 import { getModel } from './client'
-import { compileBlocks, expandMessagesFragmentTags, type ContextBlock, type ContextMessage } from './context-builder'
+import { compileBlocks, expandMessagesFragmentTags, pushPovVoice, type ContextBlock, type ContextMessage, type PovVoice } from './context-builder'
 import { compileAgentContext } from '../agents/compile-agent-context'
 import { instructionRegistry } from '../instructions'
 import { registry } from '../fragments/registry'
@@ -501,6 +501,7 @@ export function createWriterBriefBlocks(
   brief: string,
   toolLines: string[],
   modelId?: string,
+  povVoice?: PovVoice,
 ): ContextBlock[] {
   const blocks: ContextBlock[] = []
   const normalizedBrief = brief
@@ -568,6 +569,9 @@ export function createWriterBriefBlocks(
     order: 200,
     source: 'builtin',
   })
+
+  // Last block before generation; recency gives the POV directive maximal pull.
+  pushPovVoice(blocks, povVoice, 250)
 
   return blocks
 }

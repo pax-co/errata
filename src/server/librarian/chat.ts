@@ -13,6 +13,7 @@ import { createAgentInstance } from '../agents/agent-instance'
 import { getFragmentsByTag } from '../fragments/associations'
 import { inspectGenerationForFragment, type InspectAspect } from './inspect-generation'
 import { runLibrarian } from './agent'
+import { createSetCharacterVoiceTool } from './character-voice-tool'
 import { withBranch } from '../fragments/branches'
 import type { ChatStreamEvent, ChatResult } from '../agents/stream-types'
 import type { AgentBlockContext } from '../agents/agent-block-context'
@@ -29,6 +30,7 @@ export interface ChatMessage {
 export interface ChatOptions {
   messages: ChatMessage[]
   maxSteps?: number
+  povCharacterId?: string
 }
 
 export async function librarianChat(
@@ -54,7 +56,7 @@ async function librarianChatInner(
   }
 
   // Build context
-  const ctxState = await buildContextState(dataDir, storyId, '')
+  const ctxState = await buildContextState(dataDir, storyId, '', { povCharacterId: opts.povCharacterId })
 
   // Load system prompt fragments
   const sysFragIds = await getFragmentsByTag(dataDir, storyId, 'pass-to-librarian-system-prompt')
@@ -140,7 +142,9 @@ async function librarianChatInner(
     },
   })
 
-  const allTools = { ...fragmentTools, ...pluginTools, reanalyzeFragment: reanalyzeFragmentTool, optimizeCharacter: optimizeCharacterTool, inspectGeneration: inspectGenerationTool }
+  const setCharacterVoiceTool = createSetCharacterVoiceTool(dataDir, storyId)
+
+  const allTools = { ...fragmentTools, ...pluginTools, reanalyzeFragment: reanalyzeFragmentTool, optimizeCharacter: optimizeCharacterTool, inspectGeneration: inspectGenerationTool, setCharacterVoice: setCharacterVoiceTool }
 
   // Build plugin tool descriptions for the block context
   const pluginToolDescriptions = Object.entries(pluginTools).map(([name, def]) => ({
@@ -161,6 +165,7 @@ async function librarianChatInner(
     systemPromptFragments,
     pluginToolDescriptions,
     modelId,
+    povVoice: ctxState.povVoice,
   }
 
   // Compile context via block system

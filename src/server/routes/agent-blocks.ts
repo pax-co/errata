@@ -4,7 +4,7 @@ import { agentBlockRegistry } from '../agents/agent-block-registry'
 import { modelRoleRegistry } from '../agents/model-role-registry'
 import { ensureCoreAgentsRegistered } from '../agents/register-core'
 import { listActiveAgents } from '../agents/active-registry'
-import { compileBlocks, expandMessagesFragmentTags } from '../llm/context-builder'
+import { compileBlocks, expandMessagesFragmentTags, resolvePovVoicePlaceholders } from '../llm/context-builder'
 import { getModel } from '../llm/client'
 import { applyBlockConfig } from '../blocks/apply'
 import { createScriptHelpers } from '../blocks/script-context'
@@ -162,6 +162,9 @@ export function agentBlockRoutes(dataDir: string) {
         ...previewCtx,
         ...createScriptHelpers(dataDir, params.storyId),
       })
+      // Preview renders resolved text; the list endpoint keeps the template so
+      // "Replace" seeds editable {{characterName}}/{{voice}} tokens.
+      blocks = resolvePovVoicePlaceholders(blocks, previewCtx.povVoice)
       let messages = compileBlocks(blocks)
       messages = await expandMessagesFragmentTags(messages, dataDir, params.storyId)
       const blocksMeta = blocks

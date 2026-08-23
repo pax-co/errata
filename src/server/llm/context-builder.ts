@@ -6,6 +6,18 @@ import { getActiveProseIds, findSectionIndex, getProseChain } from '../fragments
 import type { Fragment, StoryMeta } from '../fragments/schema'
 import type { ModelMessage } from 'ai'
 
+/** The POV character's resolved voice, extracted from their fragment's meta.voice. */
+export interface PovVoice {
+  characterName: string
+  content?: string
+}
+
+/** Placeholder used by agent preview builders so pov-voice is enumerated/configurable in block editors. */
+export const POV_PREVIEW_VOICE: PovVoice = {
+  characterName: 'POV Character',
+  content: "(The selected POV character's voice notes will appear here.)",
+}
+
 export interface ContextBuildState {
   story: StoryMeta
   proseFragments: Fragment[]
@@ -22,6 +34,8 @@ export interface ContextBuildState {
   characterShortlist: Fragment[]
   authorInput: string
   modelId?: string
+  /** Resolved POV voice for this generation; undefined = narrator. */
+  povVoice?: PovVoice
 }
 
 export interface ContextMessage {
@@ -89,6 +103,16 @@ export interface BuildContextOptions {
   summaryBeforeFragmentId?: string
   /** Exclude story summary from context */
   excludeStorySummary?: boolean
+  /** Character whose voice/POV the passage should be written in */
+  povCharacterId?: string
+}
+
+/** Reads fragment.meta.voice; undefined when absent or blank. */
+export function getFragmentVoice(fragment: Fragment): string | undefined {
+  const raw = fragment.meta?.voice
+  if (typeof raw !== 'string') return undefined
+  const trimmed = raw.trim()
+  return trimmed === '' ? undefined : trimmed
 }
 
 /**
@@ -207,6 +231,7 @@ export async function buildContextState(
     proseBeforeFragmentId,
     summaryBeforeFragmentId,
     excludeStorySummary,
+    povCharacterId,
   } = opts
   const requestLogger = logger.child({ storyId })
   requestLogger.info('Building context state...')
@@ -369,6 +394,20 @@ export async function buildContextState(
   const stickyCharacters = allCharacters.filter((f) => f.sticky).sort(sortByOrder)
   const nonStickyCharacters = allCharacters.filter((f) => !f.sticky)
 
+  // Resolve the POV character's voice (meta.voice) for the pov-voice block.
+  let povVoice: PovVoice | undefined
+  if (povCharacterId) {
+    const povChar = allCharacters.find((f) => f.id === povCharacterId)
+    if (povChar) {
+      povVoice = {
+        characterName: povChar.name,
+        content: getFragmentVoice(povChar),
+      }
+    } else {
+      requestLogger.warn('POV character not found; ignoring', { povCharacterId })
+    }
+  }
+
   const state = {
     story: { ...story, summary: effectiveSummary },
     proseFragments: recentProse,
@@ -380,6 +419,7 @@ export async function buildContextState(
     knowledgeShortlist: nonStickyKnowledge,
     characterShortlist: nonStickyCharacters,
     authorInput,
+    povVoice,
   }
 
   requestLogger.info('Context state built', {
@@ -403,6 +443,37 @@ export interface AssembleOptions {
 /** Renders a single fragment with a source marker */
 function renderFragment(f: Fragment): string {
   return `[@fragment=${f.id}]\n${registry.renderContext(f)}`
+}
+
+/**
+ * Appends the pov-voice template block when a POV is set (no-op for narrator),
+ * emitted as the last user block so it sits right before generation.
+ * Placeholders resolve after overrides via resolvePovVoicePlaceholders
+ * (same {{token}} convention as character-chat).
+ */
+export function pushPovVoice(blocks: ContextBlock[], povVoice: PovVoice | undefined, order: number): void {
+  if (!povVoice) return
+  blocks.push({
+    id: 'pov-voice',
+    role: 'user',
+    content: "Point of View: Write from {{characterName}}'s point of view, fully using {{characterName}}'s unique voice: {{voice}}",
+    order,
+    source: 'builtin',
+  })
+}
+
+/** Resolves {{characterName}}/{{voice}} after overrides, so replacement text controls placement; omitting {{voice}} drops the voice notes. */
+export function resolvePovVoicePlaceholders(blocks: ContextBlock[], povVoice?: PovVoice): ContextBlock[] {
+  if (!povVoice || !blocks.some(b => b.id === 'pov-voice')) return blocks
+  const voice = povVoice.content?.trim()
+    ? povVoice.content
+    : `match how ${povVoice.characterName} naturally speaks elsewhere in the story`
+  return blocks.map(b => b.id !== 'pov-voice' ? b : {
+    ...b,
+    content: b.content
+      .replace(/\{\{characterName\}\}/g, povVoice.characterName)
+      .replace(/\{\{voice\}\}/g, voice),
+  })
 }
 
 /**
@@ -466,6 +537,7 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
     knowledgeShortlist,
     characterShortlist,
     authorInput,
+    povVoice,
   } = state
 
   const contextOrderMode = story.settings.contextOrderMode ?? 'simple'
@@ -671,6 +743,9 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
     order: 600,
     source: 'builtin',
   })
+
+  // Last block before generation — recency gives the POV directive maximal pull.
+  pushPovVoice(blocks, povVoice, 650)
 
   return blocks
 }

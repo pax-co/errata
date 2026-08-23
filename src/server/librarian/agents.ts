@@ -43,6 +43,7 @@ const ChatInputSchema = z.object({
     content: z.string(),
   })),
   maxSteps: z.int().positive().optional(),
+  povCharacterId: z.string().optional(),
 })
 
 const OptimizeCharacterInputSchema = z.object({
@@ -59,6 +60,7 @@ const ProseTransformInputSchema = z.object({
   sourceContent: z.string().optional(),
   contextBefore: z.string().optional(),
   contextAfter: z.string().optional(),
+  povCharacterId: z.string().optional(),
 })
 
 declare module '../agents/agent-instance' {
@@ -159,6 +161,7 @@ export function registerLibrarianAgents(): void {
       'getFragment', 'listFragments', 'searchFragments', 'listFragmentTypes',
       'createFragment', 'updateFragment', 'editFragment', 'deleteFragment',
       'editProse', 'getStorySummary', 'updateStorySummary', 'reanalyzeFragment', 'optimizeCharacter',
+      'setCharacterVoice',
     ],
     buildPreviewContext: buildChatPreviewContext,
   })

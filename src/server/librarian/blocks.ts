@@ -1,4 +1,4 @@
-import type { ContextBlock } from '../llm/context-builder'
+import { pushPovVoice, POV_PREVIEW_VOICE, type ContextBlock } from '../llm/context-builder'
 import type { AgentBlockContext } from '../agents/agent-block-context'
 import type { Fragment } from '../fragments/schema'
 import { getStory, listFragments, getFragment } from '../fragments/storage'
@@ -199,6 +199,7 @@ Your tools:
 - updateStorySummary(summary) — Replace the story's rolling summary with a new version. Use this to rewrite, condense, or correct the summary based on all available prose.
 - reanalyzeFragment(fragmentId) — Re-run librarian analysis on a prose fragment. Updates the fragment's summary, detects mentions, flags contradictions, and suggests knowledge. Use when the author asks to re-examine or reanalyze a specific prose section.
 - optimizeCharacter(fragmentId, instructions?) — Optimize a character sheet using depth-focused writing methodology. Rewrites with causality, Egri dimensions, friction, and contrast.
+- setCharacterVoice(fragmentId, voice) — Set or clear a character's POV voice notes (meta.voice). Only when the author explicitly asks to define or change how a character speaks or narrates. Empty string removes the voice. Never touch it during routine edits or optimizations.
 - inspectGeneration(fragmentId, aspect?) — Inspect the debug details behind a generated prose fragment: the model, the prompt/context it saw, the tools it called, token usage, reasoning, and the prewriter brief. aspect is one of summary (default), prompt, tools, prewriter, reasoning. Use to explain or diagnose why a passage was written the way it was.
 
 Instructions:
@@ -256,13 +257,21 @@ export function createLibrarianChatBlocks(ctx: AgentBlockContext): ContextBlock[
   const shortlist = shortlistBlock(ctx)
   if (shortlist) blocks.push(shortlist)
 
+  // POV context so prose edits respect the author's selected voice
+  pushPovVoice(blocks, ctx.povVoice, 500)
+
   return blocks
 }
 
 export async function buildChatPreviewContext(dataDir: string, storyId: string): Promise<AgentBlockContext> {
   const base = await buildBasePreviewContext(dataDir, storyId)
   const systemPromptFragments = await loadSystemPromptFragments(dataDir, storyId, getFragmentsByTag, getFragment)
-  return { ...base, systemPromptFragments }
+  return {
+    ...base,
+    systemPromptFragments,
+    // Placeholder so pov-voice is enumerated/configurable in the block editor.
+    povVoice: POV_PREVIEW_VOICE,
+  }
 }
 
 // ─── Librarian Refine ───
@@ -390,6 +399,9 @@ export function createProseTransformBlocks(ctx: AgentBlockContext): ContextBlock
     })
   }
 
+  // Last block before generation
+  pushPovVoice(blocks, ctx.povVoice, 450)
+
   return blocks
 }
 
@@ -435,6 +447,7 @@ export async function buildProseTransformPreviewContext(dataDir: string, storyId
     sourceContent: '(Preview — actual fragment content will appear during transform)',
     contextBefore: '',
     contextAfter: '',
+    povVoice: POV_PREVIEW_VOICE,
   }
 }
 

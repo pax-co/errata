@@ -1,6 +1,7 @@
 import { getFragment } from '../fragments/storage'
 import { createStreamingRunner } from '../agents/create-streaming-runner'
 import { loadStickyContextFragments } from './blocks'
+import { getFragmentVoice, type PovVoice } from '../llm/context-builder'
 import { createLogger } from '../logging'
 import type { AgentStreamResult } from '../agents/stream-types'
 
@@ -16,6 +17,7 @@ export interface ProseTransformOptions {
   sourceContent?: string
   contextBefore?: string
   contextAfter?: string
+  povCharacterId?: string
   maxSteps?: number
 }
 
@@ -51,17 +53,27 @@ export const transformProseSelection = createStreamingRunner<ProseTransformOptio
     return { sourceContent, selectedText, guidance }
   },
 
-  extraContext: async ({ dataDir, storyId, opts, validated }) => ({
+  extraContext: async ({ dataDir, storyId, opts, validated }) => {
     // Sticky-only targeted fetch — the full buildContextState pipeline is
     // overkill for a single-step transform with no tools to expand shortlists.
-    ...(await loadStickyContextFragments(dataDir, storyId)),
-    operation: opts.operation,
-    guidance: validated.guidance,
-    selectedText: validated.selectedText,
-    sourceContent: validated.sourceContent,
-    contextBefore: opts.contextBefore,
-    contextAfter: opts.contextAfter,
-  }),
+    let povVoice: PovVoice | undefined
+    if (opts.povCharacterId) {
+      const povChar = await getFragment(dataDir, storyId, opts.povCharacterId)
+      if (povChar && povChar.type === 'character') {
+        povVoice = { characterName: povChar.name, content: getFragmentVoice(povChar) }
+      }
+    }
+    return {
+      ...(await loadStickyContextFragments(dataDir, storyId)),
+      operation: opts.operation,
+      guidance: validated.guidance,
+      selectedText: validated.selectedText,
+      sourceContent: validated.sourceContent,
+      contextBefore: opts.contextBefore,
+      contextAfter: opts.contextAfter,
+      povVoice,
+    }
+  },
 
   afterStream: (result) => {
     result.completion.then((c) => {

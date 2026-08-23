@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/panel'
 import { DebugPanel } from './DebugPanel'
 import { QuestionCard } from './QuestionCard'
+import { PovSelect } from './PovSelect'
 import { Send, Eye, Square, Bug, ArrowLeft } from 'lucide-react'
 import type { ClarifyQuestion, Clarification } from '@/lib/api/types'
 
@@ -249,6 +250,7 @@ export function GenerationPanel({ storyId, onBack }: GenerationPanelProps) {
                       <Eye className="size-3" />
                       Preview
                     </Button>
+                    <PovSelect storyId={storyId} />
                   </>
                 )}
               </div>

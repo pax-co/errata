@@ -324,6 +324,7 @@ export function librarianRoutes(dataDir: string) {
           sourceContent: body.sourceContent,
           contextBefore: body.contextBefore,
           contextAfter: body.contextAfter,
+          povCharacterId: body.povCharacterId,
         })
 
         completion.then((result) => {
@@ -359,6 +360,7 @@ export function librarianRoutes(dataDir: string) {
         sourceContent: t.Optional(t.String()),
         contextBefore: t.Optional(t.String()),
         contextAfter: t.Optional(t.String()),
+        povCharacterId: t.Optional(t.String()),
       }),
       detail: { summary: 'Transform a prose selection (streaming NDJSON)' },
     })
@@ -441,9 +443,14 @@ export function librarianRoutes(dataDir: string) {
     }, { detail: { summary: 'List chat conversations' } })
 
     .post('/stories/:storyId/librarian/conversations', async ({ params, body }) => {
-      return createConversation(dataDir, params.storyId, body.title ?? 'New chat')
+      return createConversation(dataDir, params.storyId, body.title ?? 'New chat', body.povCharacterId)
     }, {
-      body: t.Object({ title: t.Optional(t.String()) }),
+      body: t.Object({
+        title: t.Optional(t.String()),
+        // Captured at creation so only conversations born from the prose-refine
+        // action carry POV voice; general chats never do.
+        povCharacterId: t.Optional(t.String()),
+      }),
       detail: { summary: 'Create a chat conversation' },
     })
 
@@ -465,12 +472,17 @@ export function librarianRoutes(dataDir: string) {
       if (!story) { set.status = 404; return { error: 'Story not found' } }
       if (!body.messages.length) { set.status = 422; return { error: 'At least one message is required' } }
 
+      // POV voice is a property of the conversation (captured at creation), not of the request.
+      const conversation = (await listConversations(dataDir, params.storyId)).find(c => c.id === params.conversationId)
+      if (!conversation) { set.status = 404; return { error: 'Conversation not found' } }
+
       let agent: ReturnType<typeof createAgentInstance> | undefined
       try {
         agent = createAgentInstance('librarian.chat', { dataDir, storyId: params.storyId })
         const { eventStream, completion } = await agent.execute({
           messages: body.messages,
           maxSteps: story.settings.maxSteps ?? 10,
+          ...(conversation.povCharacterId ? { povCharacterId: conversation.povCharacterId } : {}),
         })
 
         completion.then(async (result) => {

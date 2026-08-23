@@ -1,4 +1,5 @@
 import type { Fragment, StoryMeta } from '../fragments/schema'
+import type { PovVoice } from '../llm/context-builder'
 
 /**
  * Shared context type that all agent block builders receive.
@@ -48,6 +49,9 @@ export interface AgentBlockContext {
   // Character chat
   character?: Fragment
   personaDescription?: string
+
+  /** Resolved POV voice for the writer's pov-voice block. Preview builders set a placeholder so the block is visible/configurable in the block editor. */
+  povVoice?: PovVoice
 
   // Plugin tools
   pluginToolDescriptions?: Array<{ name: string; description: string }>

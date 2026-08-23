@@ -1,6 +1,6 @@
 import type { ToolSet } from 'ai'
 import type { ContextBlock, ContextMessage } from '../llm/context-builder'
-import { compileBlocks, expandMessagesFragmentTags } from '../llm/context-builder'
+import { compileBlocks, expandMessagesFragmentTags, resolvePovVoicePlaceholders } from '../llm/context-builder'
 import { applyBlockConfig } from '../blocks/apply'
 import { createScriptHelpers } from '../blocks/script-context'
 import { agentBlockRegistry } from './agent-block-registry'
@@ -33,6 +33,9 @@ export async function compileAgentContext(
     ...createScriptHelpers(dataDir, storyId),
   }
   blocks = await applyBlockConfig(blocks, config, scriptContext)
+  // Resolve POV placeholders after config so overrides control placement
+  // (no-op for agents whose builder emits no pov-voice block).
+  blocks = resolvePovVoicePlaceholders(blocks, blockContext.povVoice)
 
   // 3. Compile blocks → messages
   let messages = compileBlocks(blocks)

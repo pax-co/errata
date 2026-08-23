@@ -7,6 +7,7 @@ import { PenLine, ArrowRight, Pause, Compass, RefreshCw, Loader2, PenSquare, Typ
 import { cn } from '@/lib/utils'
 import type { SuggestionDirection, ClarifyQuestion, Clarification } from '@/lib/api/types'
 import { QuestionCard } from '@/components/generation/QuestionCard'
+import { PovSelect } from '@/components/generation/PovSelect'
 
 // A round high enough that the server withholds the ask tool and must write —
 // used by "Skip & write" to proceed without answering.
@@ -653,6 +654,9 @@ export function InlineGenerationInput({
                   })()}
                 </select>
               </div>
+            )}
+            {mode !== 'compose' && (
+              <PovSelect storyId={storyId} disabled={isGenerating} />
             )}
           </div>
 
