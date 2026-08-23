@@ -19,6 +19,7 @@
     "electron:release": "bun install --frozen-lockfile && bun scripts/build-electron.mjs --publish=always",
     "stress:backend": "bun install --frozen-lockfile && bun scripts/backend-stress-harness.ts",
     "docs:sync": "bun scripts/sync-docs-from-commits.ts",
+    "fork:validate": "bun scripts/validate-fork-features.ts",
     "preview": "bun install --frozen-lockfile && vite preview",
     "test": "bun install --frozen-lockfile && vitest run --config vitest.config.ts",
     "test:watch": "bun install --frozen-lockfile && vitest --config vitest.config.ts"
