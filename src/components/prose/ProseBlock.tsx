@@ -7,12 +7,15 @@ import { ChevronRail } from './ChevronRail'
 import { ProseImageHeader } from './ProseImageHeader'
 import { resolveHeaderImage } from '@/lib/fragment-visuals'
 import { GenerationThoughts } from './GenerationThoughts'
+import { SeamlessProseEditor, useSeamlessSession } from './SeamlessProseEditor'
 import { type ThoughtStep } from './InlineGenerationInput'
 import { buildAnnotationHighlighter, formatDialogue, composeTextTransforms, stripEmphasisInDialogue, type Annotation } from '@/lib/character-mentions'
+import { readCaretAnchor } from '@/lib/prose-editor-content'
 import { RefreshCw, Undo2, PenLine, Bug, Trash2, GitBranch, MessageSquare, ChevronLeft, ChevronRight, Info, BookOpen, Volume2, Square } from 'lucide-react'
 import { Caption } from '@/components/ui/prose-text'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useTtsSettings, useIsReadingFragment, playFragment, stopTts } from '@/lib/tts'
+import { useSeamlessEdit } from '@/lib/theme'
 
 interface ProseBlockProps {
   storyId: string
@@ -126,6 +129,7 @@ export const ProseBlock = memo(function ProseBlock({
     queryFn: () => api.stories.get(storyId),
     select: (s) => s.settings.expandThoughtsByDefault,
   })
+  const [seamlessEditEnabled] = useSeamlessEdit()
   const confirm = useConfirm()
   const [actionMode, setActionMode] = useState<'regenerate' | null>(null)
   const [showUndo, setShowUndo] = useState(false)
@@ -139,7 +143,9 @@ export const ProseBlock = memo(function ProseBlock({
   const isReadingThis = useIsReadingFragment(fragment.id)
   const [editingPrompt, setEditingPrompt] = useState(false)
   const [clickY, setClickY] = useState(0)
+  const [clickAnchor, setClickAnchor] = useState<number | null>(null)
   const blockRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const actionPanelRef = useRef<HTMLDivElement>(null)
   const actionInputRef = useRef<HTMLTextAreaElement>(null)
   const promptInputRef = useRef<HTMLInputElement>(null)
@@ -340,16 +346,27 @@ export const ProseBlock = memo(function ProseBlock({
     }
   }
 
+  const showUndoToast = () => {
+    setShowUndo(true)
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    undoTimerRef.current = setTimeout(() => setShowUndo(false), 10000)
+  }
+
   const handleActionComplete = () => {
     setActionMode(null)
     setEditingPrompt(false)
     setIsStreamingAction(false)
     setStreamedActionText('')
     setActionThoughtSteps([])
-    setShowUndo(true)
-    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
-    undoTimerRef.current = setTimeout(() => setShowUndo(false), 10000)
+    showUndoToast()
   }
+
+  const {
+    session: seamlessSession,
+    editing: seamlessEditing,
+    start: startSeamlessEdit,
+    end: endSeamlessEdit,
+  } = useSeamlessSession(fragment)
 
   const handlePromptSubmit = async () => {
     if (!actionInput.trim() || isStreamingAction) return
@@ -435,8 +452,24 @@ export const ProseBlock = memo(function ProseBlock({
     [fragment, mediaById],
   )
 
+  // Double-click edits; controls keep their own semantics, except the passage
+  // surface itself whose role=button must not swallow the gesture.
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    if (isStreamingAction || seamlessEditing) return
+    const control = (e.target as Element).closest('button, a, input, textarea, select, [role="button"]')
+    if (control && control !== contentRef.current) return
+    setShowActions(false)
+    window.getSelection()?.removeAllRanges() // caret, not a word selection
+    // Chrome hits resolve over the overlay: fall back to the stored anchor.
+    const anchor = readCaretAnchor(contentRef.current, e.clientX, e.clientY) ?? clickAnchor
+    if (seamlessEditEnabled) startSeamlessEdit(anchor)
+    else onEdit?.(fragment.id)
+  }
+
   return (
-    <div ref={blockRef} className="group relative mb-6" data-prose-index={displayIndex} data-component-id={`prose-${fragment.id}-block`}>
+    <div ref={blockRef} className="group relative mb-6" data-prose-index={displayIndex} data-component-id={`prose-${fragment.id}-block`}
+      onDoubleClick={handleDoubleClick}
+    >
       {/* Analyzed indicator — subtle dot in the top-right corner */}
       {hasAnalysis && (
         <div className="absolute -top-1 -right-1 z-[1]" title="Analyzed by librarian">
@@ -548,25 +581,33 @@ export const ProseBlock = memo(function ProseBlock({
       )}
 
       <div
+        ref={contentRef}
         role="button"
         tabIndex={0}
         onClick={(e: React.MouseEvent) => {
-          if (isStreamingAction) return
+          if (isStreamingAction || seamlessEditing) return
           if (!showActions && blockRef.current) {
             const blockRect = blockRef.current.getBoundingClientRect()
             setClickY(e.clientY - blockRect.top)
+            setClickAnchor(readCaretAnchor(e.currentTarget, e.clientX, e.clientY))
           }
           setShowActions(v => !v)
         }}
         onKeyDown={(e) => {
+          if (seamlessEditing) return
           if (e.key === 'Escape') { setShowActions(false); return }
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
+            setClickAnchor(null)
             if (!isStreamingAction) setShowActions(v => !v)
           }
         }}
-        className={`text-left w-full rounded-lg p-4 -mx-4 transition-all duration-150 cursor-default ${
-          showActions ? 'bg-card/50 ring-1 ring-primary/10' : 'hover:bg-card/40'
+        className={`text-left w-full rounded-lg p-4 -mx-4 transition-all duration-150 ${
+          seamlessEditing
+            ? 'cursor-text bg-primary/[0.03] ring-1 ring-primary/30'
+            : showActions
+              ? 'cursor-default bg-card/50 ring-1 ring-primary/10'
+              : 'cursor-default hover:bg-card/40'
         }`}
         data-component-id={`prose-${fragment.id}-select`}
       >
@@ -578,6 +619,17 @@ export const ProseBlock = memo(function ProseBlock({
             defaultExpanded={expandThoughtsByDefault ?? true}
           />
         )}
+        {seamlessSession && (
+          <SeamlessProseEditor
+            storyId={storyId}
+            fragment={seamlessSession.fragment}
+            initialSelection={seamlessSession.selection}
+            initialOffset={seamlessSession.offset}
+            onSaved={showUndoToast}
+            onExit={endSeamlessEdit}
+          />
+        )}
+        {!seamlessSession && (
         <StreamMarkdown
           content={(isStreamingAction || streamedActionText)
             ? streamedActionText || ''
@@ -587,6 +639,7 @@ export const ProseBlock = memo(function ProseBlock({
           variant="prose"
           textTransform={!isStreamingAction && !streamedActionText ? textTransform : undefined}
         />
+        )}
 
       </div>
 
@@ -595,7 +648,11 @@ export const ProseBlock = memo(function ProseBlock({
         <div
           ref={actionPanelRef}
           className="absolute left-0 right-0 z-10 flex justify-center animate-in fade-in zoom-in-95 duration-150"
-          style={{ top: clickY, transform: 'translateY(-50%)' }}
+          style={{
+            top: clickY,
+            // Above the click line (below near block top); never under the pointer.
+            transform: clickY < 80 ? 'translateY(0.5rem)' : 'translateY(calc(-100% - 1rem))',
+          }}
           data-component-id="prose-block-actions"
         >
           {actionMode ? (
@@ -723,8 +780,15 @@ export const ProseBlock = memo(function ProseBlock({
               <div className="flex flex-wrap items-center gap-px px-1 py-0.5">
                 <button
                   className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[0.6875rem] text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-all disabled:opacity-25"
-                  onClick={() => { if (onEdit) { onEdit(fragment.id, window.getSelection()?.toString() || undefined); setShowActions(false) } }}
-                  disabled={!onEdit}
+                  onClick={() => {
+                    setShowActions(false)
+                    if (seamlessEditEnabled) {
+                      startSeamlessEdit(clickAnchor)
+                    } else if (onEdit) {
+                      onEdit(fragment.id, window.getSelection()?.toString() || undefined)
+                    }
+                  }}
+                  disabled={!seamlessEditEnabled && !onEdit}
                   data-component-id={`prose-${fragment.id}-edit`}
                 >
                   <PenLine className="size-3.5" />
